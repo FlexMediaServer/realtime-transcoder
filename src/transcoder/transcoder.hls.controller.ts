@@ -30,11 +30,11 @@ export class TranscoderHLSController {
 		const segmentPath = path.join(session.folderPath, `${params.segment}.ts`);
 
 		if (fs.existsSync(segmentPath)) {
-			await this.transcoderService.waitForSegments('hls', params.session, parseInt(params.segment), 5)
+			await this.transcoderService.waitForSegments('hls', params.session, parseInt(params.segment), 1)
 			fs.createReadStream(segmentPath).pipe(res);
 		} else {
 			await this.transcoderService.seek(params.session, parseInt(params.segment))
-			await this.transcoderService.waitForSegments('hls', params.session, parseInt(params.segment), 5)
+			await this.transcoderService.waitForSegments('hls', params.session, parseInt(params.segment), 1)
 			fs.createReadStream(segmentPath).pipe(res);
 		}
 

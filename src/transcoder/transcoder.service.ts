@@ -198,7 +198,7 @@ export class TranscoderService {
 		});
 	}
 
-	waitForSegments (type: 'hls' | 'dash', sessionId, segmentIndex = 0, segmentAdvance = 5) {
+	waitForSegments (type: 'hls' | 'dash', sessionId, segmentIndex = 0, segmentAdvance = 1) {
 		return Promise.all(Array.from({length: segmentAdvance}, (_, i) => i).map((seg) => {
 			return type == 'hls' ? this.waitForFile(`${this.transcodeFolder}/${sessionId}/${seg + segmentIndex}.ts`) : this.waitForFile(`${this.transcodeFolder}/${sessionId}/chunk-stream0-${seg + segmentIndex}.m4s`)
 		}))
