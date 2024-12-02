@@ -1,0 +1,26 @@
+{
+	"compilerOptions": {
+	  "module": "NodeNext",
+	  "declaration": true,
+	  "removeComments": true,
+	  "emitDecoratorMetadata": true,
+	  "experimentalDecorators": true,
+	  "allowSyntheticDefaultImports": true,
+	  "resolvePackageJsonImports": true,
+	  "resolveJsonModule": true,
+	  "moduleResolution": "nodenext",
+	  "target": "ES6",
+	  "sourceMap": true,
+	  "outDir": "./dist",
+	  "baseUrl": "./",
+	  "incremental": true,
+	  "skipLibCheck": true,
+	  "strictNullChecks": false,
+	  "noImplicitAny": false,
+	  "strictBindCallApply": false,
+	  "strict": false,
+	  "forceConsistentCasingInFileNames": false,
+	  "noFallthroughCasesInSwitch": false
+	}
+}
+  
