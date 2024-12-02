@@ -26,6 +26,7 @@ export type TranscoderSession = {
 	 * */
 	subtitlePath?: string;
 	folderPath: string;
+	throttled: boolean;
 	metadata: Ffmpeg.FfprobeData
 	type: 'hls' | 'dash'
 	
@@ -37,7 +38,7 @@ export type TranscoderSessionStore = {
 	[id: string]: TranscoderSession
 }
 
-const segmentThrottleSeconds = 60;
+export const segmentThrottleSeconds = 120;
 
 @Injectable()
 export class TranscoderService {
@@ -67,7 +68,7 @@ export class TranscoderService {
 			lastSegementIndex: 0,
 			lastSeekIndex: 0,
 			currentPositionIndex: 0,
-
+			throttled: false,
 
 			//ffmpeg -i "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" -c:v libx264 -force_key_frames "expr:gte(t,n_forced*3)" -copyts -avoid_negative_ts disabled -max_muxing_queue_size 2048 -f hls -max_delay 5000000 -hls_time 3 -hls_segment_type fmp4 -hls_fmp4_init_filename "init.mp4" -start_number 0 -hls_segment_filename "%d.mp4" -hls_playlist_type vod -hls_list_size 0 -y "main.m3u8"
 			type,
@@ -96,7 +97,8 @@ export class TranscoderService {
 	}
 
 	startFfmpeg (sessionId, segmentIndex = 0) {
-		const { type, segmentLengthSeconds, url, subtitlePath, lastSeekIndex } = this.sessions[sessionId];
+		const { type, segmentLengthSeconds, url, subtitlePath } = this.sessions[sessionId];
+		let throttleTimeout = false;
 		return Ffmpeg(url)
 			.inputOptions([
 				'-analyzeduration 20000000',
@@ -132,7 +134,16 @@ export class TranscoderService {
 
 				const throttle = (segmentIndex-currentPositionIndex) >= (segmentThrottleSeconds * segmentLengthSeconds)
 
-				if (throttle) ffmpeg.kill('SIGSTOP');
+				if (throttle && !throttleTimeout) {
+					console.log(`Session ${sessionId} throttled... ${segmentIndex-currentPositionIndex} >= ${segmentThrottleSeconds * segmentLengthSeconds}`)
+					ffmpeg.kill('SIGSTOP');
+					this.sessions[sessionId].throttled = true;
+
+					throttleTimeout = true;
+					setTimeout(() => {
+						throttleTimeout = false;
+					}, 5000)
+				}
 
 				console.log('Current Timemark:', currentTimemark, ' Current Segment:', segmentIndex, 'Current Player Position:', currentPositionIndex);
 			}).bind(this))
@@ -140,6 +151,9 @@ export class TranscoderService {
 			// .size('?x1080')
 			.on('error', (e) => {
 				console.error(e)
+			})
+			.on('end', () => {
+				console.log('Transcode finished.')
 			})
 			.output(type == 'dash' ? `${this.transcodeFolder}/${sessionId}/dash` : `${this.transcodeFolder}/${sessionId}/%d.ts`)
 			.run()
@@ -155,6 +169,7 @@ export class TranscoderService {
 
 		session.ffmpeg = this.startFfmpeg(sessionId, segmentIndex);
 		session.lastSeekIndex = segmentIndex;
+		session.currentPositionIndex = segmentIndex;
 	}
 
 	getVideoMetadata (url): Promise<Ffmpeg.FfprobeData> {
@@ -188,6 +203,4 @@ export class TranscoderService {
 			return type == 'hls' ? this.waitForFile(`${this.transcodeFolder}/${sessionId}/${seg + segmentIndex}.ts`) : this.waitForFile(`${this.transcodeFolder}/${sessionId}/chunk-stream0-${seg + segmentIndex}.m4s`)
 		}))
 	}
-
-
 }

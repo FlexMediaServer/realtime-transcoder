@@ -48,6 +48,14 @@ export class TranscoderDASHController {
 			fs.createReadStream(segmentPath).pipe(res);
 		}
 
+		if (session.throttled) {
+			console.log(session.lastSegementIndex - parseInt(params.segment))
+			if (session.lastSegementIndex - parseInt(params.segment) <= 10) {
+				session.ffmpeg.kill('SIGCONT')
+				session.throttled = false;
+			}
+		}
+
 		session.currentPositionIndex = parseInt(params.segment);
 	}
 }

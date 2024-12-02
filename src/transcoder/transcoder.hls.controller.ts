@@ -1,5 +1,5 @@
 import { Controller, Get, Header, NotFoundException, Param, Query, Res } from "@nestjs/common";
-import { TranscoderService } from "./transcoder.service";;
+import { segmentThrottleSeconds, TranscoderService } from "./transcoder.service";;
 import fs from 'fs';
 import { stringify } from "hls-parser";
 import { MediaPlaylist, Segment } from "hls-parser/types";
@@ -36,6 +36,14 @@ export class TranscoderHLSController {
 			await this.transcoderService.seek(params.session, parseInt(params.segment))
 			await this.transcoderService.waitForSegments('hls', params.session, parseInt(params.segment), 5)
 			fs.createReadStream(segmentPath).pipe(res);
+		}
+
+		if (session.throttled) {
+			console.log(session.lastSegementIndex - parseInt(params.segment))
+			if (session.lastSegementIndex - parseInt(params.segment) <= 10) {
+				session.ffmpeg.kill('SIGCONT')
+				session.throttled = false;
+			}
 		}
 
 		session.currentPositionIndex = parseInt(params.segment);
