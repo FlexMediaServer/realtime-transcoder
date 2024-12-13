@@ -13,7 +13,7 @@ export class TranscoderDASHController {
 	@Get('/start.mpd')
 	@Header('content-type', 'text/xml')
 	async startDash (@Param() params, @Query() query) {
-		let { id: sessionId, metadata } = await this.transcoderService.startSession('dash', query.url);
+		let { id: sessionId, metadata } = await this.transcoderService.startSession('dash', query.url, query.audioTrack ? query.audioTrack : -1, query.subtitleTrack ? query.subtitleTrack : null);
 		await this.transcoderService.waitForSegments('dash', sessionId, 1, 5) //Wait for first 5 segments starting at seg 1
 
 		return generateManifest(sessionId, metadata, 1);
@@ -35,26 +35,7 @@ export class TranscoderDASHController {
 		const session = this.transcoderService.getSession(params.session);
 		if (!session) throw new NotFoundException();
 		
-		const segmentPath = path.join(session.folderPath, `chunk-stream${params.stream}-${params.segment}.m4s`);
-		
-		// if (session.currentPositionIndex + 1 == parseInt(params.segment)) {
-		if (fs.existsSync(segmentPath)) {
-			await this.transcoderService.waitForSegments('dash', params.session, parseInt(params.segment), 1)
-			fs.createReadStream(segmentPath).pipe(res);
-		} else {
-			if (params.stream == 0) await this.transcoderService.seek(params.session, parseInt(params.segment))
-			await this.transcoderService.waitForSegments('dash', params.session, parseInt(params.segment), 1);
-			fs.createReadStream(segmentPath).pipe(res);
-		}
-
-		if (session.throttled) {
-			console.log(session.lastSegementIndex - parseInt(params.segment))
-			if (session.lastSegementIndex - parseInt(params.segment) <= 10) {
-				session.ffmpeg.kill('SIGCONT')
-				session.throttled = false;
-			}
-		}
-
-		session.currentPositionIndex = parseInt(params.segment);
+		await this.transcoderService.getSegment(session.id, parseInt(params.stream), parseInt(params.segment), res)
+		res.end()
 	}
 }
