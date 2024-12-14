@@ -7,7 +7,7 @@ import { hlsOutputOptions } from 'src/utils/hls';
 import { dashOutputOptions } from 'src/utils/dash';
 import { getRealDuration } from 'src/utils/time';
 import { httpOutputOptions } from 'src/utils/http';
-import { pipeWait } from 'src/utils/general';
+import { pipeWait, waitForFile } from 'src/utils/general';
 
 export type TranscoderSession = {
 	/** Randomly generated 20 digit string to identify the transcoder session */
@@ -15,7 +15,7 @@ export type TranscoderSession = {
 	/** Segment length may very depending on the client that is being used. Example: most clients allow 1 second segments for faster loading, but some clients prefer larger segments such as 3 seconds */
 	segmentLengthSeconds: number;
 	/** Represents the last segment that the transcoder has processed */
-	lastSegementIndex: number;
+	lastSegmentIndex: number;
 	/** Represents the last segment that was seeked to. Used to keep track of segment  */
 	lastSeekIndex: number;
 	currentPositionIndex: number;
@@ -32,8 +32,10 @@ export type TranscoderSession = {
 	subtitlePath?: string;
 	folderPath: string;
 	throttled: boolean;
-	metadata: Ffmpeg.FfprobeData
-	type: 'hls' | 'dash' | 'http'
+	metadata: Ffmpeg.FfprobeData;
+	type: 'hls' | 'dash' | 'http';
+
+	offset: number;
 	
 	ffmpeg: any
 };
@@ -52,12 +54,16 @@ export class TranscoderService {
 	sessions: TranscoderSessionStore = {}
 	transcodeFolder = "/dev/shm"
 
-	async startSession(type: 'hls' | 'dash' | 'http', url, audioTrack = -1, subtitleTrack = null) {
-		let sessionId = randomstring.generate(20);
+	async startSession(type: 'hls' | 'dash' | 'http', url, audioTrack = -1, subtitleTrack = null, sessionId = randomstring.generate(20), offset = 0) {
+		let session = this.getSession(sessionId);
+		if (session) {
+			session.ffmpeg.kill();
+			fs.rmSync(session.folderPath, { recursive: true, force: true })
+		}
 
 		let metadata = await this.getVideoMetadata(url)
 
-		fs.mkdirSync(`${this.transcodeFolder}/${sessionId}`)
+		if (!fs.existsSync(`${this.transcodeFolder}/${sessionId}`)) fs.mkdirSync(`${this.transcodeFolder}/${sessionId}`)
 
 		let subtitlePath;
 		if (subtitleTrack) {
@@ -68,6 +74,7 @@ export class TranscoderService {
 			id: sessionId,
 
 			url: url,
+			offset: offset,
 			audioTrackIdx: audioTrack,
 			subtitleTrackIdx: subtitleTrack,
 
@@ -75,7 +82,7 @@ export class TranscoderService {
 			metadata,
 			subtitlePath,
 			folderPath: `${this.transcodeFolder}/${sessionId}`,
-			lastSegementIndex: 0,
+			lastSegmentIndex: 0,
 			lastSeekIndex: 0,
 			currentPositionIndex: 0,
 			throttled: false,
@@ -107,22 +114,30 @@ export class TranscoderService {
 	}
 
 	startFfmpeg (sessionId, segmentIndex = 0) {
-		const { type, segmentLengthSeconds, url, subtitlePath, audioTrackIdx } = this.sessions[sessionId];
+		const { type, segmentLengthSeconds, url, subtitlePath, audioTrackIdx, offset } = this.sessions[sessionId];
 		let throttleTimeout = false;
+
+		if (offset) segmentIndex = Math.floor(offset/segmentLengthSeconds);
+
+		console.log(segmentIndex)
+
 		return Ffmpeg(url, { cwd: `${this.transcodeFolder}/${sessionId}` })
 			.inputOptions([
 				'-analyzeduration 20000000',
 				'-probesize 20000000',
 				'-hwaccel cuda', '-hwaccel_output_format cuda', //CUDA
-				segmentIndex !== 0 && type == 'hls' ? `-ss ${segmentIndex * segmentLengthSeconds}` : 
-				segmentIndex !== 0 && type == 'dash' ? `-ss ${segmentIndex - 1 * segmentLengthSeconds}` : undefined
+				segmentIndex !== 0 && type == 'hls' ? `-ss ${(segmentIndex * segmentLengthSeconds)}` : 
+				segmentIndex !== 0 && type == 'dash' ? `-ss ${(segmentIndex - 1 * segmentLengthSeconds)}` : 
+				offset > 0 ? `-ss ${offset}` : undefined,
+				'-reconnect 1', '-reconnect_at_eof 1', '-reconnect_streamed 1', '-reconnect_delay_max 4294'
 			].filter(arg => arg))
 			.outputOptions([
-				'-map 0:v:0', audioTrackIdx == -1 ? '-map 0:a:0' : `-map 0:${audioTrackIdx}`,
+				'-map 0:v:0', 
+				audioTrackIdx == -1 ? '-map 0:a:0' : `-map 0:${audioTrackIdx}`,
 				'-codec:v h264_nvenc', //CUDA
 				'-codec:a aac',
 				'-forced-idr:0 1',
-				`-vf scale_cuda=w=-2:h=360:format=yuv420p${subtitlePath ? `,hwdownload,subtitles=${subtitlePath}` : ''}`, //CUDA specific
+				`-vf scale_cuda=w=-2:h=1080:format=yuv420p${subtitlePath ? `,hwdownload,subtitles=${subtitlePath}` : ''}`, //CUDA specific
 				// '-force_key_frames:0 "expr:gte(t,n_forced*1)"',
 				'-g 24', '-keyint_min 24',
 				...(type == 'dash' ? dashOutputOptions(segmentIndex, segmentLengthSeconds) : type == 'hls' ? hlsOutputOptions(segmentIndex, segmentLengthSeconds) : httpOutputOptions(segmentLengthSeconds)),
@@ -140,7 +155,7 @@ export class TranscoderService {
 				const currentTimemark = getRealDuration(lastSeekIndex, segmentLengthSeconds, progress.timemark);
 				const segmentIndex =  Math.ceil(currentTimemark/segmentLengthSeconds)
 
-				this.sessions[sessionId].lastSegementIndex = segmentIndex;
+				this.sessions[sessionId].lastSegmentIndex = segmentIndex;
 
 				const throttle = (segmentIndex-currentPositionIndex) >= (segmentThrottleSeconds * segmentLengthSeconds)
 
@@ -162,14 +177,18 @@ export class TranscoderService {
 			.on('error', (e) => {
 				console.error(e)
 			})
+			.on('stderr', function(stderrLine) {
+				// console.log('Stderr output: ' + stderrLine);
+			})
 			.on('end', () => {
 				console.log('Transcode finished.')
 			})
-			.output(type == 'dash' ? `dash` : `%d.ts`)
+			.output(type == 'dash' ? `manifest` : type == 'hls' ? `%d.ts` : '%d.mkv')
 			.run()
 	} 
 
 	async seek(sessionId, segmentIndex) {
+		console.log(`Seek to ${segmentIndex}`)
 		const session = this.sessions[sessionId];
 		session.ffmpeg.kill();
 
@@ -185,27 +204,38 @@ export class TranscoderService {
 	async getSegment (sessionId, streamIndex: number = 0, segmentIndex: number, outputStream) {
 		const session = this.getSession(sessionId);
 
-		const segmentPath = session.type == 'dash' ? path.join(session.folderPath, `chunk-stream${streamIndex}-${segmentIndex}.m4s`) : path.join(session.folderPath, `${segmentIndex}.ts`);
+		const segmentPath = 
+			session.type == 'dash' ? 
+				path.join(session.folderPath, `chunk-stream${streamIndex}-${segmentIndex}.m4s`) : 
+			session.type == 'hls' ? 
+				path.join(session.folderPath, `${segmentIndex}.ts`) :
+				path.join(session.folderPath, `${segmentIndex}.mkv`)	
 
 		// if (session.currentPositionIndex + 1 == parseInt(params.segment)) {
-		session.currentPositionIndex = segmentIndex;
-
-		if (fs.existsSync(segmentPath) || session.currentPositionIndex == segmentIndex - 1 || session.type == 'http') {
-			await this.waitForSegments('hls', sessionId, segmentIndex, 1)
-			await pipeWait(fs.createReadStream(segmentPath), outputStream)
-		} else {
-			await this.seek(sessionId, segmentIndex)
-			await this.waitForSegments('hls', sessionId, segmentIndex, 1)
-			await pipeWait(fs.createReadStream(segmentPath), outputStream)
-		}
-
 		if (session.throttled) {
-			console.log(session.lastSegementIndex - segmentIndex)
-			if (session.lastSegementIndex - segmentIndex <= 10) {
+			console.log(session.lastSegmentIndex - segmentIndex)
+			if (session.lastSegmentIndex - segmentIndex <= 10) {
 				session.ffmpeg.kill('SIGCONT')
 				session.throttled = false;
 			}
 		}
+
+
+		console.log((session as any).lastSegmentRequest,  Math.abs(((session as any).lastSegmentRequest - segmentIndex)))
+		if (
+			fs.existsSync(segmentPath) 
+			|| Math.abs((session as any).lastSegmentRequest - segmentIndex) <= 5 //Only seek if segment fetch threshold is greater than this amount
+			|| session.type == 'http') {
+			(session as any).lastSegmentRequest = segmentIndex;
+			await this.waitForSegments(session.type, sessionId, segmentIndex, 1)
+			await pipeWait(fs.createReadStream(segmentPath), outputStream)
+		} else {
+			await this.seek(sessionId, segmentIndex)
+			await this.waitForSegments(session.type, sessionId, segmentIndex, 1)
+			await pipeWait(fs.createReadStream(segmentPath), outputStream)
+		}
+
+		session.currentPositionIndex = segmentIndex;
 
 		fs.rmSync(segmentPath);
 	}
@@ -219,26 +249,15 @@ export class TranscoderService {
 		});
 	}
 
-	async waitForFile(filePath: string, interval = 1000): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
-			const checkFile = () => {
-				fs.stat(filePath, (err, stats) => {
-					if (!err && stats.size > 0) {
-						resolve();
-					} else if (err && err.code === "ENOENT") {
-						setTimeout(checkFile, interval);
-					} else {
-						setTimeout(checkFile, interval);
-					}
-				});
-			};
-			checkFile();
-		});
-	}
-
-	waitForSegments (type: 'hls' | 'dash', sessionId, segmentIndex = 0, segmentAdvance = 1) {
+	waitForSegments (type: 'hls' | 'dash' | 'http', sessionId, segmentIndex = 0, segmentAdvance = 1) {
 		return Promise.all(Array.from({length: segmentAdvance}, (_, i) => i).map((seg) => {
-			return type == 'hls' ? this.waitForFile(`${this.transcodeFolder}/${sessionId}/${seg + segmentIndex}.ts`) : this.waitForFile(`${this.transcodeFolder}/${sessionId}/chunk-stream0-${seg + segmentIndex}.m4s`)
+			return (
+				type == 'hls' ? 
+					waitForFile(`${this.transcodeFolder}/${sessionId}/${seg + segmentIndex}.ts`) : 
+				type == 'dash' ? 
+					waitForFile(`${this.transcodeFolder}/${sessionId}/chunk-stream0-${seg + segmentIndex}.m4s`) : 
+					waitForFile(`${this.transcodeFolder}/${sessionId}/${seg + segmentIndex}.mkv`)
+			)
 		}))
 	}
 }

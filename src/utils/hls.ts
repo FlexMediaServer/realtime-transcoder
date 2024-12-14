@@ -1,16 +1,18 @@
 import { MediaPlaylist, Segment } from "hls-parser/types";
 import Ffmpeg from 'fluent-ffmpeg';
 import { stringify } from "hls-parser";
+import { TranscoderSession, TranscoderSessionStore } from "src/transcoder/transcoder.service";
 
-export function generatePlaylist (sessionId: string, metadata: Ffmpeg.FfprobeData, segmentLength = 1) {
+export function generatePlaylist (session: TranscoderSession, segmentLength = 1) {
 	const playlist = new MediaPlaylist({
 		targetDuration: segmentLength,
 		playlistType: 'VOD',
 		mediaSequenceBase: 0,
 		endlist: true,
-		segments: Array.from({ length: metadata.format.duration/segmentLength }, (_, i) => i).map(
+		start: session.offset > 0 ? { offset: session.offset, precise: false } : undefined,
+		segments: Array.from({ length: session.metadata.format.duration/segmentLength }, (_, i) => i).map(
 			(index) => new Segment({
-				uri: `${sessionId}/${index}.ts`,
+				uri: `${session.id}/${index}.ts`,
 				duration: segmentLength,
 				mediaSequenceNumber: 0
 			})
