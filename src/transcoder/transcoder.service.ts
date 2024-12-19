@@ -8,6 +8,7 @@ import { dashOutputOptions } from 'src/utils/dash';
 import { getRealDuration } from 'src/utils/time';
 import { httpOutputOptions } from 'src/utils/http';
 import { pipeWait, waitForFile } from 'src/utils/general';
+import { EventEmitter } from 'stream';
 
 export type TranscoderSession = {
 	/** Randomly generated 20 digit string to identify the transcoder session */
@@ -24,6 +25,18 @@ export type TranscoderSession = {
 	/** Track Idx values */
 	audioTrackIdx: number;
 	subtitleTrackIdx: number;
+
+	lastRequestedSegment: {
+		[stream: string]: number;
+	};
+
+	segments: {
+		[key: string]: {
+			stream: number;
+			index: number;
+			read: boolean;
+		};
+	};
 	/**
 	 * The path to the subtitle file that is used in transcoding
 	 *
@@ -51,6 +64,17 @@ export class TranscoderService {
 	sessions: TranscoderSessionStore = {};
 	transcodeFolder = '/dev/shm';
 
+	eventBus = new EventEmitter();
+
+	segmentComplete(sessionId, streamIndex, segmentIndex) {
+		this.eventBus.emit(`segmentComplete-${sessionId}-${streamIndex}-${segmentIndex}`);
+		this.sessions[sessionId].segments[`${streamIndex}-${segmentIndex}`] = {
+			stream: streamIndex,
+			index: segmentIndex,
+			read: false,
+		};
+	}
+
 	async startSession(type: 'hls' | 'dash' | 'http', url, audioTrack = -1, subtitleTrack = null, sessionId = randomstring.generate(20), offset = 0) {
 		let session = this.getSession(sessionId);
 		if (session) {
@@ -74,6 +98,9 @@ export class TranscoderService {
 			lastSeekIndex: 0,
 			currentPositionIndex: 0,
 			throttled: false,
+
+			lastRequestedSegment: {},
+			segments: {},
 
 			//ffmpeg -i "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" -c:v libx264 -force_key_frames "expr:gte(t,n_forced*3)" -copyts -avoid_negative_ts disabled -max_muxing_queue_size 2048 -f hls -max_delay 5000000 -hls_time 3 -hls_segment_type fmp4 -hls_fmp4_init_filename "init.mp4" -start_number 0 -hls_segment_filename "%d.mp4" -hls_playlist_type vod -hls_list_size 0 -y "main.m3u8"
 			type,
@@ -143,7 +170,7 @@ export class TranscoderService {
 					// '-map 0:v:0',
 					subtitleTrackIdx ? `-map_inlineass 0:${subtitleTrackIdx}` : null,
 					// `-vf scale_cuda=w=-2:h=1080:format=nv12${subtitleTrackIdx ? `,hwdownload,format=nv12,inlineass=font_scale=1.250000:font_path=/home/blakebuell/Development/realtime-transcoder/assets/NotoSans-Medium.otf:fontconfig_file=/home/blakebuell/Development/realtime-transcoder/assets/fonts.conf:language=en` : ''}`, //CUDA specific
-					`-filter_complex [0:0]scale_cuda=w=-2:h=1080:format=nv12[1];[1]hwdownload,format=nv12[2]${subtitleTrackIdx ? `;[2]inlineass=font_scale=1.250000:font_path=/home/blakebuell/Development/realtime-transcoder/assets/NotoSans-Medium.otf:fontconfig_file=/home/blakebuell/Development/realtime-transcoder/assets/fonts.conf:language=en[3]` : ''}`,
+					`-filter_complex [0:v:0]scale_cuda=w=-2:h=1080:format=nv12[1];[1]hwdownload,format=nv12[2]${subtitleTrackIdx ? `;[2]inlineass=font_scale=1.250000:font_path=/home/blakebuell/Development/realtime-transcoder/assets/NotoSans-Medium.otf:fontconfig_file=/home/blakebuell/Development/realtime-transcoder/assets/fonts.conf:language=en[3]` : ''}`,
 					subtitleTrackIdx ? '-map [3]' : '-map [2]',
 
 					'-codec h264_nvenc',
@@ -159,16 +186,18 @@ export class TranscoderService {
 
 					// '-force_key_frames:0 "expr:gte(t,n_forced*1)"',
 					...(type == 'dash'
-						? dashOutputOptions(segmentIndex, segmentLengthSeconds)
+						? dashOutputOptions(sessionId, segmentIndex, segmentLengthSeconds)
 						: type == 'hls'
-							? hlsOutputOptions(segmentIndex, segmentLengthSeconds)
-							: httpOutputOptions(segmentLengthSeconds)),
+							? hlsOutputOptions(sessionId, segmentIndex, segmentLengthSeconds)
+							: httpOutputOptions(sessionId, segmentLengthSeconds)),
 					'-map_metadata -1',
 					'-map_chapters -1',
 					'-avoid_negative_ts disabled',
 					'-start_at_zero',
 					'-copyts',
-					// '-progress http://localhost:32402/transcoder/progress',
+
+					'-progress http://localhost:32402/transcoder/test/progress',
+					'-progressurl http://localhost:32402/transcoder/test/progress_url',
 					'-y',
 				].filter((arg) => arg),
 			);
@@ -183,9 +212,6 @@ export class TranscoderService {
 		ffmpeg
 			.on('start', function (commandLine) {
 				console.log('Spawned Ffmpeg with command: ' + commandLine);
-			})
-			.on('error', (error) => {
-				console.error(error);
 			})
 			.on(
 				'progress',
@@ -251,6 +277,19 @@ export class TranscoderService {
 		session.ffmpeg = this.startFfmpeg(sessionId, segmentIndex);
 		session.lastSeekIndex = segmentIndex;
 		session.currentPositionIndex = segmentIndex;
+		session.segments = {};
+	}
+
+	markSegmentAsRead(sessionId, streamIndex: number = 0, segmentIndex: number) {
+		// let index = Object.values(this.sessions[sessionId].segments).findIndex((seg) => seg.index == segmentIndex && seg.stream == streamIndex);
+		this.sessions[sessionId].segments[`${streamIndex}-${segmentIndex}`].read = true;
+	}
+
+	getLastReadSegment(sessionId, streamIndex: number = 0) {
+		let segments = Object.values(this.sessions[sessionId].segments)
+			.filter((seg) => seg.stream == streamIndex && seg.read == true)
+			.sort((a, b) => b.index - a.index);
+		return segments[0];
 	}
 
 	async getSegment(sessionId, streamIndex: number = 0, segmentIndex: number, outputStream) {
@@ -265,7 +304,6 @@ export class TranscoderService {
 
 		// if (session.currentPositionIndex + 1 == parseInt(params.segment)) {
 		if (session.throttled) {
-			console.log(session.lastSegmentIndex - segmentIndex);
 			if (session.lastSegmentIndex - segmentIndex <= 10) {
 				console.log(`Session ${session.id} resumed`);
 				session.ffmpeg.kill('SIGCONT');
@@ -273,18 +311,24 @@ export class TranscoderService {
 			}
 		}
 
-		console.log((session as any).lastSegmentRequest, Math.abs((session as any).lastSegmentRequest - segmentIndex));
+		console.log(streamIndex);
+
 		if (
-			fs.existsSync(segmentPath) ||
-			Math.abs((session as any).lastSegmentRequest - segmentIndex) <= 5 || //Only seek if segment fetch threshold is greater than this amount
+			Math.abs((session.lastRequestedSegment[streamIndex] || 0) - segmentIndex) <= 5 || //Only seek if segment fetch threshold is greater than this amount
 			session.type == 'http'
 		) {
-			if (streamIndex == 0) (session as any).lastSegmentRequest = segmentIndex;
-			await this.waitForSegments(session.type, sessionId, segmentIndex, 1);
+			session.lastRequestedSegment[streamIndex] = segmentIndex;
+
+			await this.waitForSegment(sessionId, streamIndex, segmentIndex);
+			this.markSegmentAsRead(sessionId, streamIndex, segmentIndex);
+			await pipeWait(fs.createReadStream(segmentPath), outputStream);
+		} else if (streamIndex == 0) {
+			session.lastRequestedSegment[streamIndex] = segmentIndex;
+			await this.seek(sessionId, segmentIndex);
+			await this.waitForSegment(sessionId, streamIndex, segmentIndex);
 			await pipeWait(fs.createReadStream(segmentPath), outputStream);
 		} else {
-			await this.seek(sessionId, segmentIndex);
-			await this.waitForSegments(session.type, sessionId, segmentIndex, 1);
+			await this.waitForSegment(sessionId, streamIndex, segmentIndex);
 			await pipeWait(fs.createReadStream(segmentPath), outputStream);
 		}
 
@@ -302,15 +346,12 @@ export class TranscoderService {
 		});
 	}
 
-	waitForSegments(type: 'hls' | 'dash' | 'http', sessionId, segmentIndex = 0, segmentAdvance = 1) {
-		return Promise.all(
-			Array.from({ length: segmentAdvance }, (_, i) => i).map((seg) => {
-				return type == 'hls'
-					? waitForFile(`${this.transcodeFolder}/${sessionId}/${seg + segmentIndex}.ts`)
-					: type == 'dash'
-						? waitForFile(`${this.transcodeFolder}/${sessionId}/chunk-stream0-${seg + segmentIndex}.m4s`)
-						: waitForFile(`${this.transcodeFolder}/${sessionId}/${seg + segmentIndex}.mkv`);
-			}),
-		);
+	waitForSegment(sessionId, streamIndex, segmentIndex = 0) {
+		const session = this.getSession(sessionId);
+
+		return new Promise<void>((resolve, reject) => {
+			if (session.segments[`${streamIndex}-${segmentIndex}`]) return resolve();
+			this.eventBus.once(`segmentComplete-${sessionId}-${streamIndex}-${segmentIndex}`, resolve);
+		});
 	}
 }

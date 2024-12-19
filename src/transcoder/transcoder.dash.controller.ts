@@ -5,6 +5,7 @@ import fs from 'fs';
 import { generateManifest } from 'src/utils/dash';
 import path from 'path';
 import randomstring from 'randomstring';
+import { waitForFile } from 'src/utils/general';
 
 @Controller('transcoder')
 export class TranscoderDASHController {
@@ -37,7 +38,7 @@ export class TranscoderDASHController {
 
 		const segmentPath = path.join(session.folderPath, `init-stream${params.stream}.m4s`);
 
-		await this.transcoderService.waitForSegments('dash', session.id, 1, 1);
+		await waitForFile(segmentPath);
 
 		fs.createReadStream(segmentPath).pipe(res);
 	}
@@ -47,7 +48,7 @@ export class TranscoderDASHController {
 		console.log(params);
 		const session = this.transcoderService.getSession(params.session);
 		if (!session) throw new NotFoundException();
-
+		// console.log(session);
 		await this.transcoderService.getSegment(session.id, parseInt(params.stream), parseInt(params.segment), res);
 		res.end();
 	}
