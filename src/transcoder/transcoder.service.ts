@@ -59,12 +59,19 @@ export type TranscoderSessionStore = {
 
 export const segmentThrottleSeconds = 120;
 
+class Emitter extends require('events') {
+	emit(type, ...args) {
+		// console.log(type + ' emitted');
+		super.emit(type, ...args);
+	}
+}
+
 @Injectable()
 export class TranscoderService {
 	sessions: TranscoderSessionStore = {};
 	transcodeFolder = '/dev/shm';
 
-	eventBus = new EventEmitter();
+	eventBus = new Emitter();
 
 	segmentComplete(sessionId, streamIndex, segmentIndex) {
 		this.eventBus.emit(`segmentComplete-${sessionId}-${streamIndex}-${segmentIndex}`);
@@ -78,6 +85,7 @@ export class TranscoderService {
 	async startSession(type: 'hls' | 'dash' | 'http', url, audioTrack = -1, subtitleTrack = null, sessionId = randomstring.generate(20), offset = 0) {
 		let session = this.getSession(sessionId);
 		if (session) {
+			console.log('Killing existing session: ', session.id);
 			session.ffmpeg.kill();
 			fs.rmSync(session.folderPath, { recursive: true, force: true });
 		}
@@ -282,7 +290,11 @@ export class TranscoderService {
 
 	markSegmentAsRead(sessionId, streamIndex: number = 0, segmentIndex: number) {
 		// let index = Object.values(this.sessions[sessionId].segments).findIndex((seg) => seg.index == segmentIndex && seg.stream == streamIndex);
-		this.sessions[sessionId].segments[`${streamIndex}-${segmentIndex}`].read = true;
+		this.sessions[sessionId].segments[`${streamIndex}-${segmentIndex}`] = {
+			stream: streamIndex,
+			index: segmentIndex,
+			read: true,
+		};
 	}
 
 	getLastReadSegment(sessionId, streamIndex: number = 0) {
@@ -311,24 +323,25 @@ export class TranscoderService {
 			}
 		}
 
-		console.log(streamIndex);
-
 		if (
+			// fs.existsSync(segmentPath) ||
 			Math.abs((session.lastRequestedSegment[streamIndex] || 0) - segmentIndex) <= 5 || //Only seek if segment fetch threshold is greater than this amount
 			session.type == 'http'
 		) {
 			session.lastRequestedSegment[streamIndex] = segmentIndex;
 
-			await this.waitForSegment(sessionId, streamIndex, segmentIndex);
+			if (!fs.existsSync(segmentPath)) await this.waitForSegment(sessionId, streamIndex, segmentIndex);
 			this.markSegmentAsRead(sessionId, streamIndex, segmentIndex);
 			await pipeWait(fs.createReadStream(segmentPath), outputStream);
 		} else if (streamIndex == 0) {
 			session.lastRequestedSegment[streamIndex] = segmentIndex;
 			await this.seek(sessionId, segmentIndex);
 			await this.waitForSegment(sessionId, streamIndex, segmentIndex);
+			this.markSegmentAsRead(sessionId, streamIndex, segmentIndex);
 			await pipeWait(fs.createReadStream(segmentPath), outputStream);
 		} else {
 			await this.waitForSegment(sessionId, streamIndex, segmentIndex);
+			this.markSegmentAsRead(sessionId, streamIndex, segmentIndex);
 			await pipeWait(fs.createReadStream(segmentPath), outputStream);
 		}
 

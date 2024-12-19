@@ -21,7 +21,9 @@ export class TranscoderController {
 		req.setEncoding('utf8');
 		req.on('data', (data) => {
 			const manifest = fromXML(data);
-			if (!manifest.MPD.Period.AdaptationSet) return;
+			if (manifest.MPD.Period.AdaptationSet && !Array.isArray(manifest.MPD.Period.AdaptationSet))
+				manifest.MPD.Period.AdaptationSet = [manifest.MPD.Period.AdaptationSet];
+
 			for (let AdaptationSet of manifest.MPD.Period.AdaptationSet) {
 				// console.log(AdaptationSet['@id'], AdaptationSet.Representation.SegmentTemplate['@startNumber']);
 				this.transcoderService.segmentComplete(
