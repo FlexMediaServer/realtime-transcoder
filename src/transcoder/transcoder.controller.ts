@@ -13,4 +13,9 @@ export class TranscoderController {
 	// 	});
 	// }
 
+	@Get('/ping')
+	ping () {
+		
+	}
+
 }

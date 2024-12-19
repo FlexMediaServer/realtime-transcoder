@@ -24,50 +24,38 @@ export type TranscoderSession = {
 	/** Track Idx values */
 	audioTrackIdx: number;
 	subtitleTrackIdx: number;
-	/** 
-	 * The path to the subtitle file that is used in transcoding 
-	 * 
+	/**
+	 * The path to the subtitle file that is used in transcoding
+	 *
 	 * @Optional
 	 * */
-	subtitlePath?: string;
 	folderPath: string;
 	throttled: boolean;
-	metadata: Ffmpeg.FfprobeData;
+	metadata?: Ffmpeg.FfprobeData;
 	type: 'hls' | 'dash' | 'http';
 
 	offset: number;
-	
-	ffmpeg: any
+
+	ffmpeg: any;
 };
 
 export type TranscoderSessionStore = {
 	/** id is the session ID from the stored sessions */
-	[id: string]: TranscoderSession
-}
+	[id: string]: TranscoderSession;
+};
 
 export const segmentThrottleSeconds = 120;
 
-
 @Injectable()
 export class TranscoderService {
-
-	sessions: TranscoderSessionStore = {}
-	transcodeFolder = "/dev/shm"
+	sessions: TranscoderSessionStore = {};
+	transcodeFolder = '/dev/shm';
 
 	async startSession(type: 'hls' | 'dash' | 'http', url, audioTrack = -1, subtitleTrack = null, sessionId = randomstring.generate(20), offset = 0) {
 		let session = this.getSession(sessionId);
 		if (session) {
 			session.ffmpeg.kill();
-			fs.rmSync(session.folderPath, { recursive: true, force: true })
-		}
-
-		let metadata = await this.getVideoMetadata(url)
-
-		if (!fs.existsSync(`${this.transcodeFolder}/${sessionId}`)) fs.mkdirSync(`${this.transcodeFolder}/${sessionId}`)
-
-		let subtitlePath;
-		if (subtitleTrack) {
-			subtitlePath = await this.extractSubtitles(url, sessionId, subtitleTrack, metadata)
+			fs.rmSync(session.folderPath, { recursive: true, force: true });
 		}
 
 		this.sessions[sessionId] = {
@@ -79,8 +67,8 @@ export class TranscoderService {
 			subtitleTrackIdx: subtitleTrack,
 
 			segmentLengthSeconds: 1,
-			metadata,
-			subtitlePath,
+			metadata: session ? session.metadata : await this.getVideoMetadata(url),
+			// subtitlePath,
 			folderPath: `${this.transcodeFolder}/${sessionId}`,
 			lastSegmentIndex: 0,
 			lastSeekIndex: 0,
@@ -89,106 +77,170 @@ export class TranscoderService {
 
 			//ffmpeg -i "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" -c:v libx264 -force_key_frames "expr:gte(t,n_forced*3)" -copyts -avoid_negative_ts disabled -max_muxing_queue_size 2048 -f hls -max_delay 5000000 -hls_time 3 -hls_segment_type fmp4 -hls_fmp4_init_filename "init.mp4" -start_number 0 -hls_segment_filename "%d.mp4" -hls_playlist_type vod -hls_list_size 0 -y "main.m3u8"
 			type,
-			
-			ffmpeg: null
-		}
 
+			ffmpeg: null,
+		};
+
+		let metadata = this.sessions[sessionId].metadata;
+
+		if (!fs.existsSync(`${this.transcodeFolder}/${sessionId}`)) fs.mkdirSync(`${this.transcodeFolder}/${sessionId}`);
+
+		this.sessions[sessionId].metadata = metadata;
 		this.sessions[sessionId].ffmpeg = this.startFfmpeg(sessionId, 0);
 
 		return this.sessions[sessionId];
 	}
 
-	getSession (sessionId) { return this.sessions[sessionId]; }
+	getSession(sessionId) {
+		return this.sessions[sessionId];
+	}
 
-	extractSubtitles (url, sessionId, streamIdx, metadata: Ffmpeg.FfprobeData) {
+	extractSubtitles(url, sessionId, streamIdx, metadata: Ffmpeg.FfprobeData) {
 		const stream = metadata.streams.find((stream) => stream.index == streamIdx);
 		return new Promise((resolve, reject) => {
 			Ffmpeg(url)
-				.outputOptions([
-					`-map 0:${streamIdx}`
-				])
+				.outputOptions([`-map 0:${streamIdx}`])
+				.on('start', (command) => {
+					console.log(command);
+				})
 				.on('end', () => resolve(`${this.transcodeFolder}/${sessionId}-subtitle.${stream.codec_name}`))
 				.on('error', reject)
-				.save(`${this.transcodeFolder}/${sessionId}-subtitle.${stream.codec_name}`)
-		})
+				.save(`${this.transcodeFolder}/${sessionId}-subtitle.${stream.codec_name}`);
+		});
 	}
 
-	startFfmpeg (sessionId, segmentIndex = 0) {
-		const { type, segmentLengthSeconds, url, subtitlePath, audioTrackIdx, offset } = this.sessions[sessionId];
+	startFfmpeg(sessionId, segmentIndex = 0) {
+		const { type, segmentLengthSeconds, url, subtitleTrackIdx, audioTrackIdx, offset } = this.sessions[sessionId];
 		let throttleTimeout = false;
 
-		if (offset) segmentIndex = Math.floor(offset/segmentLengthSeconds);
+		if (offset) segmentIndex = Math.floor(offset / segmentLengthSeconds);
 
-		console.log(segmentIndex)
+		console.log(segmentIndex);
 
-		return Ffmpeg(url, { cwd: `${this.transcodeFolder}/${sessionId}` })
-			.inputOptions([
-				'-analyzeduration 20000000',
-				'-probesize 20000000',
-				'-hwaccel cuda', '-hwaccel_output_format cuda', //CUDA
-				segmentIndex !== 0 && type == 'hls' ? `-ss ${(segmentIndex * segmentLengthSeconds)}` : 
-				segmentIndex !== 0 && type == 'dash' ? `-ss ${(segmentIndex - 1 * segmentLengthSeconds)}` : 
-				offset > 0 ? `-ss ${offset}` : undefined,
-				'-reconnect 1', '-reconnect_at_eof 1', '-reconnect_streamed 1', '-reconnect_delay_max 4294'
-			].filter(arg => arg))
-			.outputOptions([
-				'-map 0:v:0', 
-				audioTrackIdx == -1 ? '-map 0:a:0' : `-map 0:${audioTrackIdx}`,
-				'-codec:v h264_nvenc', //CUDA
-				'-codec:a aac',
-				'-forced-idr:0 1',
-				`-vf scale_cuda=w=-2:h=1080:format=yuv420p${subtitlePath ? `,hwdownload,subtitles=${subtitlePath}` : ''}`, //CUDA specific
-				// '-force_key_frames:0 "expr:gte(t,n_forced*1)"',
-				'-g 24', '-keyint_min 24',
-				...(type == 'dash' ? dashOutputOptions(segmentIndex, segmentLengthSeconds) : type == 'hls' ? hlsOutputOptions(segmentIndex, segmentLengthSeconds) : httpOutputOptions(segmentLengthSeconds)),
-				'-map_metadata -1', '-map_chapters -1',
-				'-avoid_negative_ts disabled', '-start_at_zero', '-copyts',
-				// '-progress http://localhost:32402/transcoder/progress',
-				'-y'
-			].filter(arg => arg))
-			.on('start', function(commandLine) {
+		let ffmpeg = Ffmpeg(url, { cwd: `${this.transcodeFolder}/${sessionId}` })
+			.inputOptions(
+				[
+					'-analyzeduration 20000000',
+					'-probesize 20000000',
+					'-hwaccel cuda',
+					'-hwaccel_output_format cuda', //CUDA
+					segmentIndex !== 0 && type == 'hls'
+						? `-ss ${segmentIndex * segmentLengthSeconds}`
+						: segmentIndex !== 0 && type == 'dash'
+							? `-ss ${segmentIndex - 1 * segmentLengthSeconds}`
+							: offset > 0
+								? `-ss ${offset}`
+								: undefined,
+					'-reconnect 1',
+					'-reconnect_at_eof 1',
+					'-reconnect_streamed 1',
+					'-reconnect_delay_max 4294',
+				].filter((arg) => arg),
+			)
+			.output(type == 'dash' ? `manifest` : type == 'hls' ? `%d.ts` : '%d.mkv')
+			.outputOptions(
+				[
+					// '-map 0:v:0',
+					subtitleTrackIdx ? `-map_inlineass 0:${subtitleTrackIdx}` : null,
+					// `-vf scale_cuda=w=-2:h=1080:format=nv12${subtitleTrackIdx ? `,hwdownload,format=nv12,inlineass=font_scale=1.250000:font_path=/home/blakebuell/Development/realtime-transcoder/assets/NotoSans-Medium.otf:fontconfig_file=/home/blakebuell/Development/realtime-transcoder/assets/fonts.conf:language=en` : ''}`, //CUDA specific
+					`-filter_complex [0:0]scale_cuda=w=-2:h=1080:format=nv12[1];[1]hwdownload,format=nv12[2]${subtitleTrackIdx ? `;[2]inlineass=font_scale=1.250000:font_path=/home/blakebuell/Development/realtime-transcoder/assets/NotoSans-Medium.otf:fontconfig_file=/home/blakebuell/Development/realtime-transcoder/assets/fonts.conf:language=en[3]` : ''}`,
+					subtitleTrackIdx ? '-map [3]' : '-map [2]',
+
+					'-codec h264_nvenc',
+					'-preset p5', //CUDA
+					'-forced-idr 1',
+					'-b 4000k',
+					'-g 24',
+					'-keyint_min 24',
+
+					audioTrackIdx == -1 ? '-map 0:a:0' : `-map 0:${audioTrackIdx}`,
+					`-codec:a aac`,
+					`-ac:a 2`,
+
+					// '-force_key_frames:0 "expr:gte(t,n_forced*1)"',
+					...(type == 'dash'
+						? dashOutputOptions(segmentIndex, segmentLengthSeconds)
+						: type == 'hls'
+							? hlsOutputOptions(segmentIndex, segmentLengthSeconds)
+							: httpOutputOptions(segmentLengthSeconds)),
+					'-map_metadata -1',
+					'-map_chapters -1',
+					'-avoid_negative_ts disabled',
+					'-start_at_zero',
+					'-copyts',
+					// '-progress http://localhost:32402/transcoder/progress',
+					'-y',
+				].filter((arg) => arg),
+			);
+
+		if (subtitleTrackIdx)
+			ffmpeg
+				.output('nullfile')
+				.outputOptions(
+					[subtitleTrackIdx ? `-map 0:${subtitleTrackIdx}` : null, '-f null', subtitleTrackIdx ? `-codec ass` : null].filter((arg) => arg),
+				);
+
+		ffmpeg
+			.on('start', function (commandLine) {
 				console.log('Spawned Ffmpeg with command: ' + commandLine);
 			})
-			.on('progress', ((progress) => {
-				const { currentPositionIndex, lastSeekIndex, segmentLengthSeconds, ffmpeg } = this.sessions[sessionId];
+			.on('error', (error) => {
+				console.error(error);
+			})
+			.on(
+				'progress',
+				((progress) => {
+					const { currentPositionIndex, lastSeekIndex, segmentLengthSeconds, ffmpeg } = this.sessions[sessionId];
 
-				const currentTimemark = getRealDuration(lastSeekIndex, segmentLengthSeconds, progress.timemark);
-				const segmentIndex =  Math.ceil(currentTimemark/segmentLengthSeconds)
+					const currentTimemark = getRealDuration(lastSeekIndex, segmentLengthSeconds, progress.timemark);
+					const segmentIndex = Math.ceil(currentTimemark / segmentLengthSeconds);
 
-				this.sessions[sessionId].lastSegmentIndex = segmentIndex;
+					this.sessions[sessionId].lastSegmentIndex = segmentIndex;
 
-				const throttle = (segmentIndex-currentPositionIndex) >= (segmentThrottleSeconds * segmentLengthSeconds)
+					const throttle = segmentIndex - currentPositionIndex >= segmentThrottleSeconds * segmentLengthSeconds;
 
-				if (throttle && !throttleTimeout) {
-					console.log(`Session ${sessionId} throttled... ${segmentIndex-currentPositionIndex} >= ${segmentThrottleSeconds * segmentLengthSeconds}`)
-					ffmpeg.kill('SIGSTOP');
-					this.sessions[sessionId].throttled = true;
+					if (throttle && !throttleTimeout) {
+						console.log(
+							`Session ${sessionId} throttled... ${segmentIndex - currentPositionIndex} >= ${segmentThrottleSeconds * segmentLengthSeconds}`,
+						);
+						ffmpeg.kill('SIGSTOP');
+						this.sessions[sessionId].throttled = true;
 
-					throttleTimeout = true;
-					setTimeout(() => {
-						throttleTimeout = false;
-					}, 5000)
-				}
+						throttleTimeout = true;
+						setTimeout(() => {
+							throttleTimeout = false;
+						}, 5000);
+					}
 
-				console.log('Current Timemark:', currentTimemark, ' Current Segment:', segmentIndex, 'Current Player Position:', currentPositionIndex);
-			}).bind(this))
+					console.log(
+						'Current Timemark:',
+						currentTimemark,
+						' Current Segment:',
+						segmentIndex,
+						'Current Player Position:',
+						currentPositionIndex,
+					);
+				}).bind(this),
+			)
 			// .size('?x360')
 			// .size('?x1080')
 			.on('error', (e) => {
-				console.error(e)
+				console.error(e);
 			})
-			.on('stderr', function(stderrLine) {
+			.on('stderr', function (stderrLine) {
 				// console.log('Stderr output: ' + stderrLine);
 			})
 			.on('end', () => {
-				console.log('Transcode finished.')
+				console.log('Transcode finished.');
 			})
-			.output(type == 'dash' ? `manifest` : type == 'hls' ? `%d.ts` : '%d.mkv')
-			.run()
-	} 
+			// .output(type == 'dash' ? `manifest` : type == 'hls' ? `%d.ts` : '%d.mkv')
+			.run();
+
+		return ffmpeg;
+	}
 
 	async seek(sessionId, segmentIndex) {
-		console.log(`Seek to ${segmentIndex}`)
+		console.log(`Seek to ${segmentIndex}`);
 		const session = this.sessions[sessionId];
 		session.ffmpeg.kill();
 
@@ -201,63 +253,64 @@ export class TranscoderService {
 		session.currentPositionIndex = segmentIndex;
 	}
 
-	async getSegment (sessionId, streamIndex: number = 0, segmentIndex: number, outputStream) {
+	async getSegment(sessionId, streamIndex: number = 0, segmentIndex: number, outputStream) {
 		const session = this.getSession(sessionId);
 
-		const segmentPath = 
-			session.type == 'dash' ? 
-				path.join(session.folderPath, `chunk-stream${streamIndex}-${segmentIndex}.m4s`) : 
-			session.type == 'hls' ? 
-				path.join(session.folderPath, `${segmentIndex}.ts`) :
-				path.join(session.folderPath, `${segmentIndex}.mkv`)	
+		const segmentPath =
+			session.type == 'dash'
+				? path.join(session.folderPath, `chunk-stream${streamIndex}-${segmentIndex}.m4s`)
+				: session.type == 'hls'
+					? path.join(session.folderPath, `${segmentIndex}.ts`)
+					: path.join(session.folderPath, `${segmentIndex}.mkv`);
 
 		// if (session.currentPositionIndex + 1 == parseInt(params.segment)) {
 		if (session.throttled) {
-			console.log(session.lastSegmentIndex - segmentIndex)
+			console.log(session.lastSegmentIndex - segmentIndex);
 			if (session.lastSegmentIndex - segmentIndex <= 10) {
-				session.ffmpeg.kill('SIGCONT')
+				console.log(`Session ${session.id} resumed`);
+				session.ffmpeg.kill('SIGCONT');
 				session.throttled = false;
 			}
 		}
 
-
-		console.log((session as any).lastSegmentRequest,  Math.abs(((session as any).lastSegmentRequest - segmentIndex)))
+		console.log((session as any).lastSegmentRequest, Math.abs((session as any).lastSegmentRequest - segmentIndex));
 		if (
-			fs.existsSync(segmentPath) 
-			|| Math.abs((session as any).lastSegmentRequest - segmentIndex) <= 5 //Only seek if segment fetch threshold is greater than this amount
-			|| session.type == 'http') {
-			(session as any).lastSegmentRequest = segmentIndex;
-			await this.waitForSegments(session.type, sessionId, segmentIndex, 1)
-			await pipeWait(fs.createReadStream(segmentPath), outputStream)
+			fs.existsSync(segmentPath) ||
+			Math.abs((session as any).lastSegmentRequest - segmentIndex) <= 5 || //Only seek if segment fetch threshold is greater than this amount
+			session.type == 'http'
+		) {
+			if (streamIndex == 0) (session as any).lastSegmentRequest = segmentIndex;
+			await this.waitForSegments(session.type, sessionId, segmentIndex, 1);
+			await pipeWait(fs.createReadStream(segmentPath), outputStream);
 		} else {
-			await this.seek(sessionId, segmentIndex)
-			await this.waitForSegments(session.type, sessionId, segmentIndex, 1)
-			await pipeWait(fs.createReadStream(segmentPath), outputStream)
+			await this.seek(sessionId, segmentIndex);
+			await this.waitForSegments(session.type, sessionId, segmentIndex, 1);
+			await pipeWait(fs.createReadStream(segmentPath), outputStream);
 		}
 
 		session.currentPositionIndex = segmentIndex;
 
-		fs.rmSync(segmentPath);
+		// fs.rmSync(segmentPath);
 	}
 
-	getVideoMetadata (url): Promise<Ffmpeg.FfprobeData> {
+	getVideoMetadata(url): Promise<Ffmpeg.FfprobeData> {
 		return new Promise<Ffmpeg.FfprobeData>((resolve, reject) => {
-			Ffmpeg.ffprobe(url, function(err, metadata) {
-				if (err) return reject(err)
-				resolve(metadata)
+			Ffmpeg.ffprobe(url, function (err, metadata) {
+				if (err) return reject(err);
+				resolve(metadata);
 			});
 		});
 	}
 
-	waitForSegments (type: 'hls' | 'dash' | 'http', sessionId, segmentIndex = 0, segmentAdvance = 1) {
-		return Promise.all(Array.from({length: segmentAdvance}, (_, i) => i).map((seg) => {
-			return (
-				type == 'hls' ? 
-					waitForFile(`${this.transcodeFolder}/${sessionId}/${seg + segmentIndex}.ts`) : 
-				type == 'dash' ? 
-					waitForFile(`${this.transcodeFolder}/${sessionId}/chunk-stream0-${seg + segmentIndex}.m4s`) : 
-					waitForFile(`${this.transcodeFolder}/${sessionId}/${seg + segmentIndex}.mkv`)
-			)
-		}))
+	waitForSegments(type: 'hls' | 'dash' | 'http', sessionId, segmentIndex = 0, segmentAdvance = 1) {
+		return Promise.all(
+			Array.from({ length: segmentAdvance }, (_, i) => i).map((seg) => {
+				return type == 'hls'
+					? waitForFile(`${this.transcodeFolder}/${sessionId}/${seg + segmentIndex}.ts`)
+					: type == 'dash'
+						? waitForFile(`${this.transcodeFolder}/${sessionId}/chunk-stream0-${seg + segmentIndex}.m4s`)
+						: waitForFile(`${this.transcodeFolder}/${sessionId}/${seg + segmentIndex}.mkv`);
+			}),
+		);
 	}
 }

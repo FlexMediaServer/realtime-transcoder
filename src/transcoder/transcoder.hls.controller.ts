@@ -15,13 +15,13 @@ export class TranscoderHLSController {
 	@Get('/start.m3u8')
 	@Header('content-type', 'application/vnd.apple.mpegurl')
 	async startHls (@Param() params, @Query() query) {
-		console.log(query.audioTrack, query.subtitleTrack)
-		let session = await this.transcoderService.startSession(
+		
+		const session_ = this.transcoderService.getSession(query.session);
+		let session = session_ ? session_ : await this.transcoderService.startSession(
 			'hls', 
 			query.url, 
 			query.audioTrack ? query.audioTrack : -1, 
-			query.subtitleTrack ? 
-			query.subtitleTrack : null,
+			query.subtitleTrack ? query.subtitleTrack : null,
 			query.session ? query.session : randomstring.generate(20),
 			parseInt(query.offset) > 0 ? parseInt(query.offset) : null
 		)
