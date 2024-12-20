@@ -158,6 +158,8 @@ export class TranscoderService {
 
 		if (offset) segmentIndex = Math.floor(offset / segmentLengthSeconds);
 
+		this.sessions[sessionId].lastSeekIndex = segmentIndex;
+
 		console.log(segmentIndex);
 
 		let ffmpeg = Ffmpeg(url, { cwd: `${this.transcodeFolder}/${sessionId}` })
