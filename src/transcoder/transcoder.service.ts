@@ -57,7 +57,7 @@ export type TranscoderSessionStore = {
 	[id: string]: TranscoderSession;
 };
 
-export const segmentThrottleSeconds = 120;
+export const segmentThrottleSeconds = 240;
 
 class Emitter extends require('events') {
 	emit(type, ...args) {
@@ -87,8 +87,10 @@ export class TranscoderService {
 		if (session) {
 			console.log('Killing existing session: ', session.id);
 			session.ffmpeg.kill();
-			fs.rmSync(session.folderPath, { recursive: true, force: true });
 		}
+
+		if (fs.existsSync(`${this.transcodeFolder}/${sessionId}`))
+			fs.rmSync(`${this.transcodeFolder}/${sessionId}`, { recursive: true, force: true });
 
 		this.sessions[sessionId] = {
 			id: sessionId,
@@ -98,7 +100,7 @@ export class TranscoderService {
 			audioTrackIdx: audioTrack,
 			subtitleTrackIdx: subtitleTrack,
 
-			segmentLengthSeconds: 1,
+			segmentLengthSeconds: 8,
 			metadata: session ? session.metadata : await this.getVideoMetadata(url),
 			// subtitlePath,
 			folderPath: `${this.transcodeFolder}/${sessionId}`,
@@ -145,8 +147,14 @@ export class TranscoderService {
 	}
 
 	startFfmpeg(sessionId, segmentIndex = 0) {
-		const { type, segmentLengthSeconds, url, subtitleTrackIdx, audioTrackIdx, offset } = this.sessions[sessionId];
+		const { type, segmentLengthSeconds, url, subtitleTrackIdx, audioTrackIdx, offset, metadata } = this.sessions[sessionId];
 		let throttleTimeout = false;
+
+		const videoStream = metadata.streams.find((stream) => stream.codec_type == 'video');
+		let fpsParsed = videoStream.r_frame_rate.split('/');
+		const fps = parseInt(fpsParsed[0]) / parseInt(fpsParsed[1]);
+
+		const keyFrameInterval = Math.round(fps * segmentLengthSeconds);
 
 		if (offset) segmentIndex = Math.floor(offset / segmentLengthSeconds);
 
@@ -181,18 +189,23 @@ export class TranscoderService {
 					`-filter_complex [0:v:0]scale_cuda=w=-2:h=1080:format=nv12[1];[1]hwdownload,format=nv12[2]${subtitleTrackIdx ? `;[2]inlineass=font_scale=1.250000:font_path=/home/blakebuell/Development/realtime-transcoder/assets/NotoSans-Medium.otf:fontconfig_file=/home/blakebuell/Development/realtime-transcoder/assets/fonts.conf:language=en[3]` : ''}`,
 					subtitleTrackIdx ? '-map [3]' : '-map [2]',
 
-					'-codec h264_nvenc',
-					'-preset p5', //CUDA
-					'-forced-idr 1',
-					'-b 4000k',
-					'-g 24',
-					'-keyint_min 24',
+					'-codec:v h264_nvenc',
+					'-preset:v p5', //CUDA
+					'-forced-idr:0 1',
+					'-b:v 2000k',
+					'-maxrate:v 4000k',
+					'-bufsize:v 5000k',
+					`-g:v ${keyFrameInterval}`,
+					`-keyint_min:v ${keyFrameInterval}`,
+					`-r:v ${fps - 0.004}`,
 
-					audioTrackIdx == -1 ? '-map 0:a:0' : `-map 0:${audioTrackIdx}`,
+					// audioTrackIdx == -1 ? '-map 0:a:0' : `-map 0:${audioTrackIdx}`,
+					`-filter_complex [${audioTrackIdx == -1 ? '0:a:0' : `0:${audioTrackIdx}`}]aresample=async=1:ochl='stereo':rematrix_maxval=0.000000dB:osr=48000[4]`,
+					'-map [4]',
 					`-codec:a aac`,
 					`-ac:a 2`,
 
-					// '-force_key_frames:0 "expr:gte(t,n_forced*1)"',
+					// '-force_key_frames:v expr:gte(t,n_forced*1)',
 					...(type == 'dash'
 						? dashOutputOptions(sessionId, segmentIndex, segmentLengthSeconds)
 						: type == 'hls'
@@ -204,8 +217,8 @@ export class TranscoderService {
 					'-start_at_zero',
 					'-copyts',
 
-					'-progress http://localhost:32402/transcoder/test/progress',
-					'-progressurl http://localhost:32402/transcoder/test/progress_url',
+					// '-progress http://localhost:32402/transcoder/test/progress',
+					// '-progressurl http://localhost:32402/transcoder/test/progress_url',
 					'-y',
 				].filter((arg) => arg),
 			);
@@ -214,7 +227,14 @@ export class TranscoderService {
 			ffmpeg
 				.output('nullfile')
 				.outputOptions(
-					[subtitleTrackIdx ? `-map 0:${subtitleTrackIdx}` : null, '-f null', subtitleTrackIdx ? `-codec ass` : null].filter((arg) => arg),
+					[
+						subtitleTrackIdx ? `-map 0:${subtitleTrackIdx}` : null,
+						'-f null',
+						subtitleTrackIdx ? `-codec ass` : null,
+						'-avoid_negative_ts disabled',
+						'-start_at_zero',
+						'-copyts',
+					].filter((arg) => arg),
 				);
 
 		ffmpeg
@@ -231,11 +251,11 @@ export class TranscoderService {
 
 					this.sessions[sessionId].lastSegmentIndex = segmentIndex;
 
-					const throttle = segmentIndex - currentPositionIndex >= segmentThrottleSeconds * segmentLengthSeconds;
+					const throttle = (segmentIndex - Math.max(lastSeekIndex, currentPositionIndex)) * segmentLengthSeconds >= segmentThrottleSeconds;
 
 					if (throttle && !throttleTimeout) {
 						console.log(
-							`Session ${sessionId} throttled... ${segmentIndex - currentPositionIndex} >= ${segmentThrottleSeconds * segmentLengthSeconds}`,
+							`Session ${sessionId} throttled... ${(segmentIndex - Math.max(lastSeekIndex, currentPositionIndex)) * segmentLengthSeconds >= segmentThrottleSeconds} >= ${segmentThrottleSeconds}`,
 						);
 						ffmpeg.kill('SIGSTOP');
 						this.sessions[sessionId].throttled = true;
@@ -253,6 +273,8 @@ export class TranscoderService {
 						segmentIndex,
 						'Current Player Position:',
 						currentPositionIndex,
+						'Segment Throttle Seconds',
+						(segmentIndex - Math.max(lastSeekIndex, currentPositionIndex)) * segmentLengthSeconds,
 					);
 				}).bind(this),
 			)
@@ -282,10 +304,11 @@ export class TranscoderService {
 			fs.unlinkSync(path.join(`${this.transcodeFolder}/${sessionId}`, file));
 		}
 
-		session.ffmpeg = this.startFfmpeg(sessionId, segmentIndex);
 		session.lastSeekIndex = segmentIndex;
 		session.currentPositionIndex = segmentIndex;
 		session.segments = {};
+
+		session.ffmpeg = this.startFfmpeg(sessionId, segmentIndex);
 	}
 
 	markSegmentAsRead(sessionId, streamIndex: number = 0, segmentIndex: number) {
@@ -330,7 +353,7 @@ export class TranscoderService {
 		) {
 			session.lastRequestedSegment[streamIndex] = segmentIndex;
 
-			if (!fs.existsSync(segmentPath)) await this.waitForSegment(sessionId, streamIndex, segmentIndex);
+			await this.waitForSegment(sessionId, streamIndex, segmentIndex);
 			this.markSegmentAsRead(sessionId, streamIndex, segmentIndex);
 			await pipeWait(fs.createReadStream(segmentPath), outputStream);
 		} else if (streamIndex == 0) {
@@ -364,7 +387,7 @@ export class TranscoderService {
 
 		return new Promise<void>((resolve, reject) => {
 			if (session.segments[`${streamIndex}-${segmentIndex}`]) return resolve();
-			this.eventBus.once(`segmentComplete-${sessionId}-${streamIndex}-${segmentIndex}`, resolve);
+			this.eventBus.once(`segmentComplete-${sessionId}-${streamIndex}-${segmentIndex}`, () => resolve());
 		});
 	}
 }

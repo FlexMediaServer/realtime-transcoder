@@ -15,16 +15,20 @@ export class TranscoderDASHController {
 	@Header('content-type', 'text/xml')
 	async startDash(@Param() params, @Query() query) {
 		const session = this.transcoderService.getSession(query.session);
-		let { id: sessionId, metadata } = session
-			? session
-			: await this.transcoderService.startSession(
-					'dash',
-					query.url,
-					query.audioTrack ? query.audioTrack : -1,
-					query.subtitleTrack ? query.subtitleTrack : null,
-					query.session ? query.session : randomstring.generate(20),
-					parseInt(query.offset) > 0 ? parseInt(query.offset) : null,
-				);
+		let { id: sessionId, metadata } =
+			session &&
+			(query.subtitleTrack ? parseInt(query.subtitleTrack) == session.subtitleTrackIdx : true) &&
+			(query.audioTrack ? parseInt(query.audioTrack) == session.audioTrackIdx : true) &&
+			(query.url ? query.url == session.url : true)
+				? session
+				: await this.transcoderService.startSession(
+						'dash',
+						query.url,
+						query.audioTrack ? parseInt(query.audioTrack) : -1,
+						query.subtitleTrack ? parseInt(query.subtitleTrack) : null,
+						query.session ? query.session : randomstring.generate(20),
+						parseInt(query.offset) > 0 ? parseInt(query.offset) : null,
+					);
 
 		// await this.transcoderService.waitForSegments('dash', sessionId, 1, 1) //Wait for first 5 segments starting at seg 1
 

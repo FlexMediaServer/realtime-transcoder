@@ -39,8 +39,14 @@ export class TranscoderController {
 	segmentList(@Req() req, @Param() params) {
 		req.setEncoding('utf8');
 		req.on('data', (data) => {
-			let rows = data.split('\n').filter((row) => !row.startsWith('#'));
-			this.transcoderService.segmentComplete(params.id, 0, Math.round(parseInt(rows[0].split(',')[1])));
+			let rows = data
+				.split('\n')
+				.filter((row) => !row.startsWith('#') && row !== '')
+				.reverse();
+			// console.log(rows);
+			if (rows.length <= 0) return;
+			const segment = rows[0].split(',')[0].split('.')[0];
+			this.transcoderService.segmentComplete(params.id, 0, Math.round(parseInt(segment)));
 		});
 	}
 

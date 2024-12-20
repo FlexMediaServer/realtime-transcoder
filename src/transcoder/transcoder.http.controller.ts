@@ -15,8 +15,8 @@ export class TranscoderHTTPController {
 		let session = await this.transcoderService.startSession(
 			'http',
 			query.url,
-			query.audioTrack ? query.audioTrack : -1,
-			query.subtitleTrack ? query.subtitleTrack : null,
+			query.audioTrack ? parseInt(query.audioTrack) : -1,
+			query.subtitleTrack ? parseInt(query.subtitleTrack) : null,
 			query.session ? query.session : randomstring.generate(20),
 			query.offset > 0 ? query.offset : null,
 		);
