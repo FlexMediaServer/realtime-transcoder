@@ -188,7 +188,7 @@ export class TranscoderService {
 					// '-map 0:v:0',
 					subtitleTrackIdx ? `-map_inlineass 0:${subtitleTrackIdx}` : null,
 					// `-vf scale_cuda=w=-2:h=1080:format=nv12${subtitleTrackIdx ? `,hwdownload,format=nv12,inlineass=font_scale=1.250000:font_path=/home/blakebuell/Development/realtime-transcoder/assets/NotoSans-Medium.otf:fontconfig_file=/home/blakebuell/Development/realtime-transcoder/assets/fonts.conf:language=en` : ''}`, //CUDA specific
-					`-filter_complex [0:v:0]scale_cuda=w=-2:h=1080:format=nv12[1];[1]hwdownload,format=nv12[2]${subtitleTrackIdx ? `;[2]inlineass=font_scale=1.250000:font_path=/home/blakebuell/Development/realtime-transcoder/assets/NotoSans-Medium.otf:fontconfig_file=/home/blakebuell/Development/realtime-transcoder/assets/fonts.conf:language=en[3]` : ''}`,
+					`-filter_complex [0:v:0]format=nv12,hwupload,scale_cuda=w=-2:h=1080:format=nv12[1];[1]hwdownload,format=nv12[2]${subtitleTrackIdx ? `;[2]inlineass=font_scale=1.250000:font_path=/home/blakebuell/Development/realtime-transcoder/assets/NotoSans-Medium.otf:fontconfig_file=/home/blakebuell/Development/realtime-transcoder/assets/fonts.conf:language=en[3]` : ''}`,
 					subtitleTrackIdx ? '-map [3]' : '-map [2]',
 
 					'-codec:v h264_nvenc',
