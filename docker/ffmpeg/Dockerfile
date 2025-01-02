@@ -2,7 +2,7 @@
 
 # syntax=docker/dockerfile:1
 
-FROM ghcr.io/linuxserver/baseimage-ubuntu:jammy as buildstage
+FROM ghcr.io/linuxserver/baseimage-ubuntu:jammy AS buildstage
 
 # set version label
 ARG FFMPEG_VERSION
@@ -469,6 +469,22 @@ RUN \
   curl -Lf \
     https://downloads.plex.tv/ffmpeg-source/plex-media-server-ffmpeg-gpl-${FFMPEG}.tar.gz | \
     tar -zx --strip-components=1 -C /tmp/ffmpeg
+
+#CUDA LLVM dependencies
+RUN apt-get install -y \
+clang \
+clang-tools \
+libclang1 \
+clang-format \
+clangd \
+libllvm-ocaml-dev \
+libllvm12 \
+llvm \
+llvm-dev \
+llvm-runtime \
+lldb \
+lld
+
 RUN \
   echo "**** compiling ffmpeg ****" && \
   cd /tmp/ffmpeg && \
@@ -502,6 +518,7 @@ RUN \
     --enable-nonfree \
     --enable-nvdec \
     --enable-nvenc \
+	--enable-cuda-llvm \
     --enable-opencl \
     --enable-openssl \
     --enable-small \
