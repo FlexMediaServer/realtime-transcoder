@@ -9,53 +9,7 @@ import { getRealDuration } from 'src/utils/time';
 import { httpOutputOptions } from 'src/utils/http';
 import { pipeWait, waitForFile } from 'src/utils/general';
 import { EventEmitter } from 'stream';
-
-export type TranscoderSession = {
-	/** Randomly generated 20 digit string to identify the transcoder session */
-	id: string;
-	/** Segment length may very depending on the client that is being used. Example: most clients allow 1 second segments for faster loading, but some clients prefer larger segments such as 3 seconds */
-	segmentLengthSeconds: number;
-	/** Represents the last segment that the transcoder has processed */
-	lastSegmentIndex: number;
-	/** Represents the last segment that was seeked to. Used to keep track of segment  */
-	lastSeekIndex: number;
-	currentPositionIndex: number;
-	/** The file url the file that is being transcoded */
-	url: string;
-	/** Track Idx values */
-	audioTrackIdx: number;
-	subtitleTrackIdx: number;
-
-	lastRequestedSegment: {
-		[stream: string]: number;
-	};
-
-	segments: {
-		[key: string]: {
-			stream: number;
-			index: number;
-			read: boolean;
-		};
-	};
-	/**
-	 * The path to the subtitle file that is used in transcoding
-	 *
-	 * @Optional
-	 * */
-	folderPath: string;
-	throttled: boolean;
-	metadata?: Ffmpeg.FfprobeData;
-	type: 'hls' | 'dash' | 'http';
-
-	offset: number;
-
-	ffmpeg: any;
-};
-
-export type TranscoderSessionStore = {
-	/** id is the session ID from the stored sessions */
-	[id: string]: TranscoderSession;
-};
+import { TranscoderSessionStore } from './transcoder.types';
 
 export const segmentThrottleSeconds = 240;
 
@@ -73,13 +27,37 @@ export class TranscoderService {
 
 	eventBus = new Emitter();
 
-	segmentComplete(sessionId, streamIndex, segmentIndex) {
+	fillSegments(sessionId, streamIndex, startSegmentIndex: number, endSegmentIndex: number) {
+		let segments = this.sessions[sessionId].segments[`${streamIndex}`];
+
+		for (let index of Array.from({ length: endSegmentIndex - startSegmentIndex }, (_, i) => i + startSegmentIndex)) {
+			this.eventBus.emit(`segmentComplete-${sessionId}-${streamIndex}-${index}`);
+			segments.push({
+				index: index,
+				read: false,
+			});
+		}
+	}
+
+	segmentComplete(sessionId: string, streamIndex: number, segmentIndex: number) {
+		let segments = this.sessions[sessionId].segments[`${streamIndex}`];
+		if (!segments) segments = this.sessions[sessionId].segments[`${streamIndex}`] = [] as any;
+
+		const lastSegment = segments ? segments[segments.length - 1] : undefined;
+		//ffmpeg sometimes misses a segment on the progress reporting. This just fills in the blanks.
+		if (lastSegment && segmentIndex - lastSegment?.index > 1 && segmentIndex - lastSegment?.index < 3) {
+			console.log(`Filling segment range: ${lastSegment.index + 1} - ${segmentIndex - 1}`);
+			this.fillSegments(sessionId, streamIndex, lastSegment.index + 1, segmentIndex);
+		}
+		// for (let index in [...Array()]) {
+
+		// }
+
 		this.eventBus.emit(`segmentComplete-${sessionId}-${streamIndex}-${segmentIndex}`);
-		this.sessions[sessionId].segments[`${streamIndex}-${segmentIndex}`] = {
-			stream: streamIndex,
+		segments.push({
 			index: segmentIndex,
 			read: false,
-		};
+		});
 	}
 
 	async startSession(type: 'hls' | 'dash' | 'http', url, audioTrack = -1, subtitleTrack = null, sessionId = randomstring.generate(20), offset = 0) {
@@ -100,7 +78,7 @@ export class TranscoderService {
 			audioTrackIdx: audioTrack,
 			subtitleTrackIdx: subtitleTrack,
 
-			segmentLengthSeconds: 8,
+			segmentLengthSeconds: 1,
 			metadata: session ? session.metadata : await this.getVideoMetadata(url),
 			// subtitlePath,
 			folderPath: `${this.transcodeFolder}/${sessionId}`,
@@ -152,9 +130,10 @@ export class TranscoderService {
 
 		const videoStream = metadata.streams.find((stream) => stream.codec_type == 'video');
 		let fpsParsed = videoStream.r_frame_rate.split('/');
+		// const fps = Math.round((parseInt(fpsParsed[0]) / parseInt(fpsParsed[1])) * 1000) / 1000;
 		const fps = parseInt(fpsParsed[0]) / parseInt(fpsParsed[1]);
-
-		const keyFrameInterval = Math.round(fps * segmentLengthSeconds);
+		//
+		const keyFrameInterval = Math.floor(fps * segmentLengthSeconds);
 
 		if (offset) segmentIndex = Math.floor(offset / segmentLengthSeconds);
 
@@ -167,8 +146,8 @@ export class TranscoderService {
 				[
 					'-analyzeduration 20000000',
 					'-probesize 20000000',
-					'-hwaccel cuda',
-					'-hwaccel_output_format cuda', //CUDA
+					'-hwaccel nvdec',
+					// '-hwaccel_output_format cuda', //CUDA
 					segmentIndex !== 0 && type == 'hls'
 						? `-ss ${segmentIndex * segmentLengthSeconds}`
 						: segmentIndex !== 0 && type == 'dash'
@@ -194,12 +173,12 @@ export class TranscoderService {
 					'-codec:v h264_nvenc',
 					'-preset:v p5', //CUDA
 					'-forced-idr:0 1',
-					'-b:v 2000k',
-					'-maxrate:v 4000k',
-					'-bufsize:v 5000k',
+					'-b:v 3000k',
+					'-maxrate:v 6000k',
+					'-bufsize:v 3000k',
 					`-g:v ${keyFrameInterval}`,
 					`-keyint_min:v ${keyFrameInterval}`,
-					`-r:v ${fps - 0.004}`,
+					`-r:v ${Math.round(fps)}`,
 
 					// audioTrackIdx == -1 ? '-map 0:a:0' : `-map 0:${audioTrackIdx}`,
 					`-filter_complex [${audioTrackIdx == -1 ? '0:a:0' : `0:${audioTrackIdx}`}]aresample=async=1:ochl='stereo':rematrix_maxval=0.000000dB:osr=48000[4]`,
@@ -315,18 +294,11 @@ export class TranscoderService {
 
 	markSegmentAsRead(sessionId, streamIndex: number = 0, segmentIndex: number) {
 		// let index = Object.values(this.sessions[sessionId].segments).findIndex((seg) => seg.index == segmentIndex && seg.stream == streamIndex);
-		this.sessions[sessionId].segments[`${streamIndex}-${segmentIndex}`] = {
-			stream: streamIndex,
+		const index = this.sessions[sessionId].segments[streamIndex].findIndex((stream) => stream.index == segmentIndex);
+		this.sessions[sessionId].segments[streamIndex][index] = {
 			index: segmentIndex,
 			read: true,
 		};
-	}
-
-	getLastReadSegment(sessionId, streamIndex: number = 0) {
-		let segments = Object.values(this.sessions[sessionId].segments)
-			.filter((seg) => seg.stream == streamIndex && seg.read == true)
-			.sort((a, b) => b.index - a.index);
-		return segments[0];
 	}
 
 	async getSegment(sessionId, streamIndex: number = 0, segmentIndex: number, outputStream) {
@@ -388,7 +360,7 @@ export class TranscoderService {
 		const session = this.getSession(sessionId);
 
 		return new Promise<void>((resolve, reject) => {
-			if (session.segments[`${streamIndex}-${segmentIndex}`]) return resolve();
+			if (session.segments[`${streamIndex}`]?.find((stream) => stream.index == segmentIndex)) return resolve();
 			this.eventBus.once(`segmentComplete-${sessionId}-${streamIndex}-${segmentIndex}`, () => resolve());
 		});
 	}

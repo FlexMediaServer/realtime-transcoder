@@ -1,7 +1,7 @@
 import { MasterPlaylist, MediaPlaylist, Segment } from 'hls-parser/types';
 import Ffmpeg from 'fluent-ffmpeg';
 import { stringify } from 'hls-parser';
-import { TranscoderSession, TranscoderSessionStore } from 'src/transcoder/transcoder.service';
+import { TranscoderSession, TranscoderSessionStore } from 'src/transcoder/transcoder.types';
 
 export function generatePlaylist(session: TranscoderSession, segmentLength = 1) {
 	const playlist = new MediaPlaylist({
