@@ -791,7 +791,7 @@ RUN \
     # --enable-libvidstab \
     --enable-libvmaf \
     --enable-libvorbis \
-    --enable-libvpl \
+    # --enable-libvpl \
     --enable-libvpx \
     --enable-libwebp \
     --enable-libx264 \
