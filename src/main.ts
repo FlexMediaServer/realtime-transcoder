@@ -1,10 +1,13 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { ValidationPipe } from '@nestjs/common';
+import 'dotenv/config';
 
 async function bootstrap() {
 	const app = await NestFactory.create(AppModule);
 	app.enableCors();
-	const express = app.getHttpAdapter();
+	app.useGlobalPipes(new ValidationPipe());
+	// const express = app.getHttpAdapter();
 	// express.post('/transcoder/:id/manifest', (req, res) => {
 	// 	req.setEncoding('utf8');
 	// 	req.on('data', (data) => {

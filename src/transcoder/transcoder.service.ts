@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Options } from '@nestjs/common';
 import Ffmpeg from 'fluent-ffmpeg';
 import randomstring from 'randomstring';
 import fs from 'fs';
@@ -10,6 +10,10 @@ import { httpOutputOptions } from 'src/utils/http';
 import { pipeWait, waitForFile } from 'src/utils/general';
 import { EventEmitter } from 'stream';
 import { TranscoderSessionStore } from './transcoder.types';
+import { buildScaleFilter, buildSubtitleFilterInlineass, choosePresetOptions, getEncoder, isHardware } from 'src/utils/filters';
+import { vaapiPresetOptions } from 'src/utils/hwaccel/vaapi';
+import { cudaPresetOptions } from 'src/utils/hwaccel/cuda';
+import { Preset } from './transcoder.dto';
 
 export const segmentThrottleSeconds = 240;
 
@@ -60,7 +64,24 @@ export class TranscoderService {
 		});
 	}
 
-	async startSession(type: 'hls' | 'dash' | 'http', url, audioTrack = -1, subtitleTrack = null, sessionId = randomstring.generate(20), offset = 0) {
+	/*
+	: {
+		type: 'hls' | 'dash' | 'http', 
+		url: string, 
+		audioTrack = -1, subtitleTrack = null, sessionId = randomstring.generate(20), offset = 0
+	}
+		*/
+	async startSession({
+		type = <'hls' | 'dash' | 'http'>undefined,
+		url = <string>undefined,
+		resolution,
+		preset = <Preset>'ultrafast',
+		codec = <'h264' | 'hevc'>'h264',
+		audioTrack = -1,
+		subtitleTrack = <number>null,
+		sessionId = randomstring.generate(20),
+		offset = 0,
+	}) {
 		let session = this.getSession(sessionId);
 		if (session) {
 			console.log('Killing existing session: ', session.id);
@@ -70,6 +91,9 @@ export class TranscoderService {
 		if (fs.existsSync(`${this.transcodeFolder}/${sessionId}`))
 			fs.rmSync(`${this.transcodeFolder}/${sessionId}`, { recursive: true, force: true });
 
+		const metadata = session ? session.metadata : await this.getVideoMetadata(url);
+		const videoStream = metadata.streams.find((stream) => stream.codec_type == 'video');
+
 		this.sessions[sessionId] = {
 			id: sessionId,
 
@@ -77,9 +101,12 @@ export class TranscoderService {
 			offset: offset,
 			audioTrackIdx: audioTrack,
 			subtitleTrackIdx: subtitleTrack,
+			resolution: resolution ? resolution : `${videoStream.width}x${videoStream.height}`,
+			codec,
+			preset,
 
 			segmentLengthSeconds: 1,
-			metadata: session ? session.metadata : await this.getVideoMetadata(url),
+			metadata,
 			// subtitlePath,
 			folderPath: `${this.transcodeFolder}/${sessionId}`,
 			lastSegmentIndex: 0,
@@ -95,9 +122,6 @@ export class TranscoderService {
 
 			ffmpeg: null,
 		};
-
-		let metadata = this.sessions[sessionId].metadata;
-
 		if (!fs.existsSync(`${this.transcodeFolder}/${sessionId}`)) fs.mkdirSync(`${this.transcodeFolder}/${sessionId}`);
 
 		this.sessions[sessionId].metadata = metadata;
@@ -125,7 +149,8 @@ export class TranscoderService {
 	}
 
 	startFfmpeg(sessionId, segmentIndex = 0) {
-		const { type, segmentLengthSeconds, url, subtitleTrackIdx, audioTrackIdx, offset, metadata } = this.sessions[sessionId];
+		const { type, segmentLengthSeconds, url, subtitleTrackIdx, audioTrackIdx, offset, metadata, resolution, codec, preset } =
+			this.sessions[sessionId];
 		let throttleTimeout = false;
 
 		const videoStream = metadata.streams.find((stream) => stream.codec_type == 'video');
@@ -146,7 +171,11 @@ export class TranscoderService {
 				[
 					'-analyzeduration 20000000',
 					'-probesize 20000000',
-					'-hwaccel nvdec',
+					...(process.env.TRANSCODE_TYPE === 'nvenc'
+						? ['-hwaccel nvdec']
+						: process.env.TRANSCODE_TYPE === 'vaapi'
+							? ['-hwaccel vaapi', '-hwaccel_output_format vaapi']
+							: []),
 					// '-hwaccel_output_format cuda', //CUDA
 					segmentIndex !== 0 && type == 'hls'
 						? `-ss ${segmentIndex * segmentLengthSeconds}`
@@ -162,30 +191,34 @@ export class TranscoderService {
 				].filter((arg) => arg),
 			)
 			.output(type == 'dash' ? `manifest` : type == 'hls' ? `%d.ts` : '%d.mkv')
+			.complexFilter([
+				{
+					inputs: '0:v:0',
+					filter: `${isHardware() ? 'format=nv12,hwupload,' : ''}${buildScaleFilter(resolution)}${isHardware() ? ',hwdownload,format=nv12' : ''}${subtitleTrackIdx ? '[subs];[subs]' + buildSubtitleFilterInlineass() : ''}`,
+					outputs: 'video',
+				},
+				{
+					inputs: '0:a:0',
+					filter: `aresample=async=1:ochl='stereo':rematrix_maxval=0.000000dB:osr=48000`,
+					outputs: 'audio',
+				},
+			])
+			.map('video')
+			.map('audio')
+			.audioCodec('aac')
+			.audioChannels(2)
+			.videoCodec(getEncoder(codec))
+			.withVideoBitrate('3000k')
+			.withFPS(Math.round(fps))
 			.outputOptions(
 				[
-					// '-map 0:v:0',
+					choosePresetOptions(preset),
 					subtitleTrackIdx ? `-map_inlineass 0:${subtitleTrackIdx}` : null,
-					// `-vf scale_cuda=w=-2:h=1080:format=nv12${subtitleTrackIdx ? `,hwdownload,format=nv12,inlineass=font_scale=1.250000:font_path=/home/blakebuell/Development/realtime-transcoder/assets/NotoSans-Medium.otf:fontconfig_file=/home/blakebuell/Development/realtime-transcoder/assets/fonts.conf:language=en` : ''}`, //CUDA specific
-					`-filter_complex [0:v:0]format=nv12,hwupload,scale_cuda=w=-2:h=1080:format=nv12[1];[1]hwdownload,format=nv12[2]${subtitleTrackIdx ? `;[2]inlineass=font_scale=1.250000:font_path=/home/blakebuell/Development/realtime-transcoder/assets/NotoSans-Medium.otf:fontconfig_file=/home/blakebuell/Development/realtime-transcoder/assets/fonts.conf:language=en[3]` : ''}`,
-					subtitleTrackIdx ? '-map [3]' : '-map [2]',
-
-					'-codec:v h264_nvenc',
-					'-preset:v p5', //CUDA
 					'-forced-idr:0 1',
-					'-b:v 3000k',
 					'-maxrate:v 6000k',
 					'-bufsize:v 3000k',
 					`-g:v ${keyFrameInterval}`,
 					`-keyint_min:v ${keyFrameInterval}`,
-					`-r:v ${Math.round(fps)}`,
-
-					// audioTrackIdx == -1 ? '-map 0:a:0' : `-map 0:${audioTrackIdx}`,
-					`-filter_complex [${audioTrackIdx == -1 ? '0:a:0' : `0:${audioTrackIdx}`}]aresample=async=1:ochl='stereo':rematrix_maxval=0.000000dB:osr=48000[4]`,
-					'-map [4]',
-					`-codec:a aac`,
-					`-ac:a 2`,
-
 					// '-force_key_frames:v expr:gte(t,n_forced*1)',
 					...(type == 'dash'
 						? dashOutputOptions(sessionId, segmentIndex, segmentLengthSeconds)
@@ -197,9 +230,6 @@ export class TranscoderService {
 					'-avoid_negative_ts disabled',
 					'-start_at_zero',
 					'-copyts',
-
-					// '-progress http://localhost:32402/transcoder/test/progress',
-					// '-progressurl http://localhost:32402/transcoder/test/progress_url',
 					'-y',
 				].filter((arg) => arg),
 			);

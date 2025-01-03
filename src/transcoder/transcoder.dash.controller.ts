@@ -1,11 +1,10 @@
 import { Controller, Get, Header, NotFoundException, Param, Query, Res } from '@nestjs/common';
 import { TranscoderService } from './transcoder.service';
-import { toXML } from 'to-xml';
 import fs from 'fs';
 import { generateManifest } from 'src/utils/dash';
 import path from 'path';
-import randomstring from 'randomstring';
 import { waitForFile } from 'src/utils/general';
+import { StartTranscodeDto } from './transcoder.dto';
 
 @Controller('transcoder')
 export class TranscoderDASHController {
@@ -13,22 +12,25 @@ export class TranscoderDASHController {
 
 	@Get('/start.mpd')
 	@Header('content-type', 'text/xml')
-	async startDash(@Param() params, @Query() query) {
+	async startDash(@Param() params, @Query() query: StartTranscodeDto) {
 		const session = this.transcoderService.getSession(query.session);
 		let { id: sessionId, metadata } =
 			session &&
-			(query.subtitleTrack ? parseInt(query.subtitleTrack) == session.subtitleTrackIdx : true) &&
-			(query.audioTrack ? parseInt(query.audioTrack) == session.audioTrackIdx : true) &&
+			(query.subtitleTrack ? query.subtitleTrack == session.subtitleTrackIdx : true) &&
+			(query.audioTrack ? query.audioTrack == session.audioTrackIdx : true) &&
 			(query.url ? query.url == session.url : true)
 				? session
-				: await this.transcoderService.startSession(
-						'dash',
-						query.url,
-						query.audioTrack ? parseInt(query.audioTrack) : -1,
-						query.subtitleTrack ? parseInt(query.subtitleTrack) : null,
-						query.session ? query.session : randomstring.generate(20),
-						parseInt(query.offset) > 0 ? parseInt(query.offset) : null,
-					);
+				: await this.transcoderService.startSession({
+						type: 'dash',
+						url: query.url,
+						audioTrack: query.audioTrack,
+						subtitleTrack: query.subtitleTrack,
+						sessionId: query.session,
+						codec: query.codec,
+						offset: query.offset > 0 ? query.offset : null,
+						resolution: query.resolution,
+						preset: query.preset,
+					});
 
 		// await this.transcoderService.waitForSegments('dash', sessionId, 1, 1) //Wait for first 5 segments starting at seg 1
 

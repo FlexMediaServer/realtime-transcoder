@@ -6,6 +6,7 @@ import { MediaPlaylist, Segment } from 'hls-parser/types';
 import { generateMasterPlaylist, generatePlaylist } from 'src/utils/hls';
 import path from 'path';
 import randomstring from 'randomstring';
+import { StartTranscodeDto } from './transcoder.dto';
 
 @Controller('transcoder')
 export class TranscoderHLSController {
@@ -13,22 +14,25 @@ export class TranscoderHLSController {
 
 	@Get('/start.m3u8')
 	@Header('content-type', 'application/vnd.apple.mpegurl')
-	async startHls(@Req() req, @Param() params, @Query() query) {
+	async startHls(@Req() req, @Param() params, @Query() query: StartTranscodeDto) {
 		const session_ = this.transcoderService.getSession(query.session);
 		let session =
 			session_ &&
-			(query.subtitleTrack ? parseInt(query.subtitleTrack) == session_.subtitleTrackIdx : true) &&
-			(query.audioTrack ? parseInt(query.audioTrack) == session_.audioTrackIdx : true) &&
+			(query.subtitleTrack ? query.subtitleTrack == session_.subtitleTrackIdx : true) &&
+			(query.audioTrack ? query.audioTrack == session_.audioTrackIdx : true) &&
 			(query.url ? query.url == session_.url : true)
 				? session_
-				: await this.transcoderService.startSession(
-						'hls',
-						query.url,
-						query.audioTrack ? parseInt(query.audioTrack) : -1,
-						query.subtitleTrack ? parseInt(query.subtitleTrack) : null,
-						query.session ? query.session : randomstring.generate(20),
-						parseInt(query.offset) > 0 ? parseInt(query.offset) : null,
-					);
+				: await this.transcoderService.startSession({
+						type: 'hls',
+						url: query.url,
+						audioTrack: query.audioTrack,
+						subtitleTrack: query.subtitleTrack,
+						codec: query.codec,
+						sessionId: query.session,
+						offset: query.offset > 0 ? query.offset : null,
+						resolution: query.resolution,
+						preset: query.preset,
+					});
 
 		let segmentIndex = Math.floor(session.offset / session.segmentLengthSeconds);
 

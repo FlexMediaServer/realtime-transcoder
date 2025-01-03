@@ -1,4 +1,5 @@
 import Ffmpeg from 'fluent-ffmpeg';
+import { Preset } from './transcoder.dto';
 
 export type TranscoderSession = {
 	/** Randomly generated 20 digit string to identify the transcoder session */
@@ -15,6 +16,9 @@ export type TranscoderSession = {
 	/** Track Idx values */
 	audioTrackIdx: number;
 	subtitleTrackIdx: number;
+	resolution: string;
+	codec: 'h264' | 'hevc';
+	preset: Preset;
 
 	lastRequestedSegment: {
 		[stream: string]: number;

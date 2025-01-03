@@ -1,8 +1,15 @@
-export function encoder (codec: 'h264' | 'hevc') {
-	return codec == 'hevc' ? 'hevc_nvenc' : 'h264_nvenc'
-}
+import { Preset } from 'src/transcoder/transcoder.dto';
 
-export function scale (resolution: string = '1920x1080') {
-	const res = resolution.split('x');
-	return `scale_cuda=w=${res[0] == '-1' ? '-2' : res[0]}:h=${res[1] == '-1' ? '-2' : res[1]}`
+export function cudaPresetOptions(preset: Preset) {
+	return (
+		{
+			ultrafast: '-preset p1',
+			superfast: '-preset p2',
+			veryfast: '-preset p3',
+			fast: '-preset p4',
+			slow: '-preset p5',
+			slower: '-preset p6',
+			veryslow: '-preset p7',
+		}[preset] || ''
+	);
 }

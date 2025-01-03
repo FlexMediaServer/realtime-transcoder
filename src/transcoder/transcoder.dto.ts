@@ -1,0 +1,67 @@
+import { Transform, Type } from 'class-transformer';
+import { IsEnum, IsNotEmpty, IsNumber, IsNumberString, IsOptional, IsString, Matches } from 'class-validator';
+
+export enum Preset {
+	ULTRAFAST = 'ultrafast',
+	SUPERFAST = 'superfast',
+	VERYFAST = 'veryfast',
+	FAST = 'fast',
+	SLOW = 'slow',
+	SLOWER = 'slower',
+	VERYSLOW = 'veryslow',
+}
+
+export enum Codec {
+	h264 = 'h264',
+	hevc = 'hevc',
+}
+
+export class StartTranscodeDto {
+	@IsString()
+	@IsOptional()
+	session: string;
+
+	@IsNotEmpty()
+	@IsString()
+	url: string;
+
+	@IsOptional()
+	@Type(() => Number)
+	@IsNumber()
+	offset: number; //Offset defines the starting segment of the transcode session. Eg. you want to start at segment 40
+
+	@IsOptional()
+	@Type(() => Number)
+	@IsNumber()
+	videoTrack: number;
+
+	@IsOptional()
+	@Type(() => Number)
+	@IsNumber()
+	audioTrack: number;
+
+	@IsOptional()
+	@Type(() => Number)
+	@IsNumber()
+	subtitleTrack: number;
+
+	@IsOptional()
+	@IsString()
+	@IsEnum(Codec)
+	codec: Codec;
+
+	@IsOptional()
+	@IsString()
+	@IsEnum(Preset)
+	preset: Preset;
+
+	@IsOptional()
+	@Type(() => Number)
+	@IsNumber()
+	bitrate: number;
+
+	@IsOptional()
+	@IsString()
+	@Matches(/^-?\d+x-?\d+$/gm)
+	resolution: string; //1920x1080 or -1x1080
+}
