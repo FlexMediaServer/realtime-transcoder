@@ -42,7 +42,7 @@ export class TranscoderDASHController {
 		const session = this.transcoderService.getSession(params.session);
 		if (!session) throw new NotFoundException();
 
-		const segmentPath = path.join(session.folderPath, `init-stream${params.stream}.m4s`);
+		const segmentPath = path.join(session.folderPath, `header`);
 
 		await waitForFile(segmentPath);
 

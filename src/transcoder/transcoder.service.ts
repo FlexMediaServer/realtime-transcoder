@@ -149,7 +149,7 @@ export class TranscoderService {
 	}
 
 	startFfmpeg(sessionId, segmentIndex = 0) {
-		const { type, segmentLengthSeconds, url, subtitleTrackIdx, audioTrackIdx, offset, metadata, resolution, codec, preset } =
+		const { type, segmentLengthSeconds, url, subtitleTrackIdx, audioTrackIdx, offset, metadata, resolution, codec, preset, id } =
 			this.sessions[sessionId];
 		let throttleTimeout = false;
 
@@ -169,28 +169,27 @@ export class TranscoderService {
 		let ffmpeg = Ffmpeg(url, { cwd: `${this.transcodeFolder}/${sessionId}` })
 			.inputOptions(
 				[
+					'-loglevel debug',
 					'-analyzeduration 20000000',
 					'-probesize 20000000',
 					...(process.env.TRANSCODE_TYPE === 'nvenc'
 						? ['-hwaccel nvdec']
 						: process.env.TRANSCODE_TYPE === 'vaapi'
-							? ['-hwaccel vaapi', '-hwaccel_output_format vaapi']
+							? ['-hwaccel vaapi']
 							: []),
 					// '-hwaccel_output_format cuda', //CUDA
-					segmentIndex !== 0 && type == 'hls'
+					segmentIndex !== 0 && (type == 'hls' || type == 'dash')
 						? `-ss ${segmentIndex * segmentLengthSeconds}`
-						: segmentIndex !== 0 && type == 'dash'
-							? `-ss ${segmentIndex - 1 * segmentLengthSeconds}`
-							: offset > 0
-								? `-ss ${offset}`
-								: undefined,
+						: offset > 0
+							? `-ss ${offset}`
+							: undefined,
 					'-reconnect 1',
 					'-reconnect_at_eof 1',
 					'-reconnect_streamed 1',
 					'-reconnect_delay_max 4294',
 				].filter((arg) => arg),
 			)
-			.output(type == 'dash' ? `manifest` : type == 'hls' ? `%d.ts` : '%d.mkv')
+			.output(type == 'dash' ? `%d.mp4` : type == 'hls' ? `%d.ts` : '%d.mkv')
 			.complexFilter([
 				{
 					inputs: '0:v:0',
@@ -251,6 +250,7 @@ export class TranscoderService {
 		ffmpeg
 			.on('start', function (commandLine) {
 				console.log('Spawned Ffmpeg with command: ' + commandLine);
+				fs.appendFileSync(`logs/${id}`, 'Spawned Ffmpeg with command: ' + commandLine + '\n');
 			})
 			.on(
 				'progress',
@@ -295,7 +295,7 @@ export class TranscoderService {
 				console.error(e);
 			})
 			.on('stderr', function (stderrLine) {
-				// console.log('Stderr output: ' + stderrLine);
+				fs.appendFileSync(`logs/${id}`, stderrLine + '\n');
 			})
 			.on('end', () => {
 				console.log('Transcode finished.');
@@ -336,7 +336,7 @@ export class TranscoderService {
 
 		const segmentPath =
 			session.type == 'dash'
-				? path.join(session.folderPath, `chunk-stream${streamIndex}-${segmentIndex}.m4s`)
+				? path.join(session.folderPath, `${segmentIndex}.mp4`)
 				: session.type == 'hls'
 					? path.join(session.folderPath, `${segmentIndex}.ts`)
 					: path.join(session.folderPath, `${segmentIndex}.mkv`);

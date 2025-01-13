@@ -30,16 +30,9 @@
 # apt -y install libunistring-dev libaom-dev libdav1d-dev libx264-dev libx265-dev
 
 # wget https://downloads.plex.tv/ffmpeg-source/plex-media-server-ffmpeg-gpl-db205f47a6.tar.gz && mkdir ffmpeg && tar -xvzf plex-media-server-ffmpeg-gpl-db205f47a6.tar.gz -C ffmpeg && rm plex-media-server-ffmpeg-gpl-db205f47a6.tar.gz
-cd ffmpeg
-git clone https://github.com/FFmpeg/nv-codec-headers -b n11.1.5.3
-cd nv-codec-headers
-make
-make install
-cd ../../
 
-cd ffmpeg/plex-media-server-ffmpeg-gpl-db205f47a68d442405e9bf9baa5e7df54df97021
 
-export PATH=/usr/local/cuda-12.6/bin:$PATH
+git clone https://github.com/plextra/plex-ffmpeg -b release/6.1
 
 ./configure \
 	--bindir="/usr/bin" \
@@ -48,7 +41,6 @@ export PATH=/usr/local/cuda-12.6/bin:$PATH
 	--enable-libx264 \
 	--enable-libx265 \
 	--enable-openssl \
-	--enable-cuda-nvcc --enable-cuda-llvm --enable-cuvid --enable-nvdec --enable-nvenc --enable-ffnvcodec --extra-cflags=-I/usr/local/cuda-12.6/include --extra-ldflags=-L/usr/local/cuda-12.6/lib64 \
 	--enable-libass \
 	--enable-libopus
 

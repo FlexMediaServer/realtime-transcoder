@@ -1,4 +1,4 @@
-FROM plex-ffmpeg AS base
+FROM ghcr.io/blakeb415/plex-ffmpeg:n6.1.2 AS base
 
 ENV NVM_VERSION=v0.33.11
 ENV NODE_VERSION=20.18.1

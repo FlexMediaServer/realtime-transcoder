@@ -32,33 +32,33 @@ export function generateManifest(sessionId: string, metadata: Ffmpeg.FfprobeData
 						Representation: {
 							'@id': '0',
 							'@mimeType': 'video/mp4',
-							'@codecs': 'avc1.4d002a',
+							'@codecs': 'avc1.4d002a,mp4a.40.2',
 							'@bandwidth': '4214000',
 							'@width': '1920',
 							'@height': '1080',
 						},
 					},
-					{
-						'@segmentAlignment': 'true',
-						SegmentTemplate: {
-							'@timescale': '1',
-							'@duration': segmentLength,
-							'@initialization': `${sessionId}/$RepresentationID$/init.m4s`,
-							'@media': `${sessionId}/$RepresentationID$/$Number$.m4s`,
-							'@startNumber': '1',
-						},
-						Representation: {
-							'@id': '1',
-							'@mimeType': 'audio/mp4',
-							'@codecs': 'mp4a.40.2',
-							'@bandwidth': '256000',
-							'@audioSamplingRate': '48000',
-							AudioChannelConfiguration: {
-								'@schemeIdUri': 'urn:mpeg:dash:23003:3:audio_channel_configuration:2011',
-								'@value': '2',
-							},
-						},
-					},
+					// {
+					// 	'@segmentAlignment': 'true',
+					// 	SegmentTemplate: {
+					// 		'@timescale': '1',
+					// 		'@duration': segmentLength,
+					// 		'@initialization': `${sessionId}/$RepresentationID$/init.m4s`,
+					// 		'@media': `${sessionId}/$RepresentationID$/$Number$.m4s`,
+					// 		'@startNumber': '1',
+					// 	},
+					// 	Representation: {
+					// 		'@id': '1',
+					// 		'@mimeType': 'audio/mp4',
+					// 		'@codecs': 'mp4a.40.2',
+					// 		'@bandwidth': '256000',
+					// 		'@audioSamplingRate': '48000',
+					// 		AudioChannelConfiguration: {
+					// 			'@schemeIdUri': 'urn:mpeg:dash:23003:3:audio_channel_configuration:2011',
+					// 			'@value': '2',
+					// 		},
+					// 	},
+					// },
 				],
 			},
 		},
@@ -68,17 +68,38 @@ export function generateManifest(sessionId: string, metadata: Ffmpeg.FfprobeData
 }
 
 export function dashOutputOptions(sessionId, segmentIndex, segmentLength) {
+	// return [
+	// 	'-f dash',
+	// 	`-seg_duration ${segmentLength}`,
+	// 	'-dash_segment_type mp4',
+	// 	'-init_seg_name init-stream$RepresentationID$.m4s',
+	// 	'-media_seg_name chunk-stream$RepresentationID$-$Number%01d$.m4s',
+	// 	'-window_size 5',
+	// 	'-delete_removed false',
+	// 	segmentIndex !== 0 ? `-skip_to_segment ${segmentIndex}` : undefined,
+	// 	'-time_delta 0.0625',
+	// 	`-manifest_name http://localhost:32402/transcoder/status/${sessionId}/manifest_mpd`,
+	// 	'-method POST',
+	// ];
 	return [
-		'-f dash',
-		`-seg_duration ${segmentLength}`,
-		'-dash_segment_type mp4',
-		'-init_seg_name init-stream$RepresentationID$.m4s',
-		'-media_seg_name chunk-stream$RepresentationID$-$Number%01d$.m4s',
-		'-window_size 5',
-		'-delete_removed false',
-		segmentIndex !== 0 ? `-skip_to_segment ${segmentIndex}` : undefined,
-		'-time_delta 0.0625',
-		`-manifest_name http://localhost:32402/transcoder/status/${sessionId}/manifest_mpd`,
-		'-method POST',
+		`-segment_start_number ${segmentIndex}`,
+		// '-segment_format mpegts',
+		'-segment_format m4s',
+		'-f ssegment',
+		'-individual_header_trailer 0',
+		`-segment_time ${segmentLength}`,
+		// '-segment_copyts 1',
+		'-segment_time_delta 0.0625',
+		// '-segment_list_separate_stream_times 1',
+		// '-segment_list_unfinished 1',
+		segmentIndex > 0
+			? '-segment_format_options movflags=+dash+delay_moov+global_sidx+skip_trailer+frag_discont'
+			: '-segment_format_options movflags=+dash+delay_moov+global_sidx+skip_trailer',
+		`-segment_list http://localhost:32402/transcoder/status/${sessionId}/manifest_csv`,
+		'-segment_list_type csv',
+		'-segment_list_size 5',
+		'-max_delay 5000000',
+		'-flags +global_header',
+		'-segment_header_filename header',
 	];
 }
