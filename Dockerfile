@@ -10,9 +10,9 @@ ENV NODE_PATH=$NVM_DIR/v${NODE_VERSION}/lib/node_modules
 ENV PATH=$NVM_DIR/versions/node/v${NODE_VERSION}/bin:$PATH
 
 RUN echo "source $NVM_DIR/nvm.sh && \
-    nvm install $NODE_VERSION && \
-    nvm alias default $NODE_VERSION && \
-    nvm use default" | bash
+	nvm install $NODE_VERSION && \
+	nvm alias default $NODE_VERSION && \
+	nvm use default" | bash
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
