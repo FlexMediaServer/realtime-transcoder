@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 import { Injectable, Options } from '@nestjs/common';
 import Ffmpeg from 'fluent-ffmpeg';
 import randomstring from 'randomstring';
@@ -32,9 +33,9 @@ export class TranscoderService {
 	eventBus = new Emitter();
 
 	fillSegments(sessionId, streamIndex, startSegmentIndex: number, endSegmentIndex: number) {
-		let segments = this.sessions[sessionId].segments[`${streamIndex}`];
+		const segments = this.sessions[sessionId].segments[`${streamIndex}`];
 
-		for (let index of Array.from({ length: endSegmentIndex - startSegmentIndex }, (_, i) => i + startSegmentIndex)) {
+		for (const index of Array.from({ length: endSegmentIndex - startSegmentIndex }, (_, i) => i + startSegmentIndex)) {
 			this.eventBus.emit(`segmentComplete-${sessionId}-${streamIndex}-${index}`);
 			segments.push({
 				index: index,
@@ -82,7 +83,7 @@ export class TranscoderService {
 		sessionId = randomstring.generate(20),
 		offset = 0,
 	}) {
-		let session = this.getSession(sessionId);
+		const session = this.getSession(sessionId);
 		if (session) {
 			console.log('Killing existing session: ', session.id);
 			session.ffmpeg.kill();
@@ -154,7 +155,7 @@ export class TranscoderService {
 		let throttleTimeout = false;
 
 		const videoStream = metadata.streams.find((stream) => stream.codec_type == 'video');
-		let fpsParsed = videoStream.r_frame_rate.split('/');
+		const fpsParsed = videoStream.r_frame_rate.split('/');
 		// const fps = Math.round((parseInt(fpsParsed[0]) / parseInt(fpsParsed[1])) * 1000) / 1000;
 		const fps = parseInt(fpsParsed[0]) / parseInt(fpsParsed[1]);
 		//
@@ -166,7 +167,7 @@ export class TranscoderService {
 
 		console.log(segmentIndex);
 
-		let ffmpeg = Ffmpeg(url, { cwd: `${this.transcodeFolder}/${sessionId}` })
+		const ffmpeg = Ffmpeg(url, { cwd: `${this.transcodeFolder}/${sessionId}` })
 			.inputOptions(
 				[
 					'-loglevel debug',
@@ -197,17 +198,18 @@ export class TranscoderService {
 					outputs: 'video',
 				},
 				{
-					inputs: '0:a:0',
+					inputs: audioTrackIdx ? `0:${audioTrackIdx}` : '0:a:0',
 					filter: `aresample=async=1:ochl='stereo':rematrix_maxval=0.000000dB:osr=48000`,
 					outputs: 'audio',
 				},
 			])
 			.map('video')
 			.map('audio')
-			.audioCodec('aac')
+			.audioCodec('libfdk_aac')
 			.audioChannels(2)
+			.audioBitrate('192k')
 			.videoCodec(getEncoder(codec))
-			.withVideoBitrate('3000k')
+			.withVideoBitrate('6000k')
 			.withFPS(Math.round(fps))
 			.outputOptions(
 				[
@@ -250,7 +252,7 @@ export class TranscoderService {
 		ffmpeg
 			.on('start', function (commandLine) {
 				console.log('Spawned Ffmpeg with command: ' + commandLine);
-				fs.appendFileSync(`logs/${id}`, 'Spawned Ffmpeg with command: ' + commandLine + '\n');
+				// fs.appendFileSync(`logs/${id}`, 'Spawned Ffmpeg with command: ' + commandLine + '\n');
 			})
 			.on(
 				'progress',
@@ -295,7 +297,7 @@ export class TranscoderService {
 				console.error(e);
 			})
 			.on('stderr', function (stderrLine) {
-				fs.appendFileSync(`logs/${id}`, stderrLine + '\n');
+				// fs.appendFileSync(`logs/${id}`, stderrLine + '\n');
 			})
 			.on('end', () => {
 				console.log('Transcode finished.');

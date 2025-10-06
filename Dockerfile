@@ -1,7 +1,10 @@
-FROM ghcr.io/blakeb415/plex-ffmpeg:n6.1.2 AS base
+FROM ghcr.io/plextra/plex-ffmpeg AS base
+
+WORKDIR /usr/src/app
 
 ENV NVM_VERSION=v0.33.11
-ENV NODE_VERSION=20.18.1
+ENV NODE_VERSION=24.2.0
+ENV PNPM_HOME="/pnpm"
 ENV NVM_DIR=/usr/local/nvm
 RUN mkdir $NVM_DIR
 RUN curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.11/install.sh | bash
@@ -18,21 +21,15 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 
-COPY . /app
-WORKDIR /app
+COPY package*.json ./
+COPY pnpm-lock.yaml ./
 
-FROM base AS prod-deps
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --force
 
-FROM base AS build
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+COPY . .
+
 RUN pnpm run build
-
-FROM base
-COPY --from=prod-deps /app/node_modules /app/node_modules
-COPY --from=build /app/dist /app/dist
-RUN corepack use pnpm@latest
 
 EXPOSE 32402
 
-ENTRYPOINT ["pnpm", "start"]
+ENTRYPOINT pnpm run start:prod
