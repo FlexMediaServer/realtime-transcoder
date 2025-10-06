@@ -24,7 +24,7 @@ export class TranscoderController {
 			if (manifest.MPD.Period.AdaptationSet && !Array.isArray(manifest.MPD.Period.AdaptationSet))
 				manifest.MPD.Period.AdaptationSet = [manifest.MPD.Period.AdaptationSet];
 
-			for (let AdaptationSet of manifest.MPD.Period.AdaptationSet) {
+			for (const AdaptationSet of manifest.MPD.Period.AdaptationSet) {
 				// console.log(AdaptationSet['@id'], AdaptationSet.Representation.SegmentTemplate['@startNumber']);
 				this.transcoderService.segmentComplete(
 					params.id,
@@ -39,7 +39,7 @@ export class TranscoderController {
 	segmentList(@Req() req, @Param() params) {
 		req.setEncoding('utf8');
 		req.on('data', (data) => {
-			let rows = data
+			const rows = data
 				.split('\n')
 				.filter((row) => !row.startsWith('#') && row !== '')
 				.reverse();

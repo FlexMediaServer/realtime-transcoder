@@ -14,7 +14,7 @@ export class TranscoderDASHController {
 	@Header('content-type', 'text/xml')
 	async startDash(@Param() params, @Query() query: StartTranscodeDto) {
 		const session = this.transcoderService.getSession(query.session);
-		let {
+		const {
 			id: sessionId,
 			metadata,
 			segmentLengthSeconds,
@@ -45,7 +45,7 @@ export class TranscoderDASHController {
 		const session = this.transcoderService.getSession(params.session);
 		if (!session) throw new NotFoundException();
 
-		const segmentPath = path.join(session.folderPath, `header`);
+		const segmentPath = path.join(session.folderPath, `init-${params.stream}.m4s`);
 
 		await waitForFile(segmentPath);
 

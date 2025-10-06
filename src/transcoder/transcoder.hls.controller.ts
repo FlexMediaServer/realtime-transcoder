@@ -16,7 +16,7 @@ export class TranscoderHLSController {
 	@Header('content-type', 'application/vnd.apple.mpegurl')
 	async startHls(@Req() req, @Param() params, @Query() query: StartTranscodeDto) {
 		const session_ = this.transcoderService.getSession(query.session);
-		let session =
+		const session =
 			session_ &&
 			(query.subtitleTrack ? query.subtitleTrack == session_.subtitleTrackIdx : true) &&
 			(query.audioTrack ? query.audioTrack == session_.audioTrackIdx : true) &&
@@ -34,7 +34,7 @@ export class TranscoderHLSController {
 						preset: query.preset,
 					});
 
-		let segmentIndex = Math.floor(session.offset / session.segmentLengthSeconds);
+		const segmentIndex = Math.floor(session.offset / session.segmentLengthSeconds);
 
 		// await this.transcoderService.waitForSegment('hls', session.id, 0, segmentIndex);
 

@@ -190,7 +190,7 @@ export class TranscoderService {
 					'-reconnect_delay_max 4294',
 				].filter((arg) => arg),
 			)
-			.output(type == 'dash' ? `%d.mp4` : type == 'hls' ? `%d.ts` : '%d.mkv')
+			.output(type == 'dash' ? `manifest.mpd` : type == 'hls' ? `%d.ts` : '%d.mkv')
 			.complexFilter([
 				{
 					inputs: '0:v:0',
@@ -339,7 +339,7 @@ export class TranscoderService {
 
 		const segmentPath =
 			session.type == 'dash'
-				? path.join(session.folderPath, `${segmentIndex}.mp4`)
+				? path.join(session.folderPath, `${streamIndex}-${segmentIndex}.m4s`)
 				: session.type == 'hls'
 					? path.join(session.folderPath, `${segmentIndex}.ts`)
 					: path.join(session.folderPath, `${segmentIndex}.mkv`);
