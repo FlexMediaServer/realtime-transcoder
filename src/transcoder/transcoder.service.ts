@@ -106,7 +106,7 @@ export class TranscoderService {
 			codec,
 			preset,
 
-			segmentLengthSeconds: 1,
+			segmentLengthSeconds: 5,
 			metadata,
 			// subtitlePath,
 			folderPath: `${this.transcodeFolder}/${sessionId}`,
@@ -198,7 +198,7 @@ export class TranscoderService {
 					outputs: 'video',
 				},
 				{
-					inputs: audioTrackIdx ? `0:${audioTrackIdx}` : '0:a:0',
+					inputs: audioTrackIdx > -1 ? `0:${audioTrackIdx}` : '0:a:0',
 					filter: `aresample=async=1:ochl='stereo':rematrix_maxval=0.000000dB:osr=48000`,
 					outputs: 'audio',
 				},
@@ -213,6 +213,7 @@ export class TranscoderService {
 			.withFPS(Math.round(fps))
 			.outputOptions(
 				[
+					'-profile:a aac_low',
 					choosePresetOptions(preset),
 					subtitleTrackIdx ? `-map_inlineass 0:${subtitleTrackIdx}` : null,
 					'-forced-idr:0 1',

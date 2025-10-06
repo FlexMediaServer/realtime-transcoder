@@ -2,7 +2,7 @@ import Ffmpeg from 'fluent-ffmpeg';
 import { toXML } from 'to-xml';
 import { secondsToIsoPt } from './time';
 
-export function generateManifest(sessionId: string, metadata: Ffmpeg.FfprobeData, segmentLength = 1) {
+export function generateManifest(sessionId: string, metadata: Ffmpeg.FfprobeData, segmentLength = 5) {
 	const obj = {
 		MPD: {
 			'@xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance',
@@ -32,7 +32,7 @@ export function generateManifest(sessionId: string, metadata: Ffmpeg.FfprobeData
 						Representation: {
 							'@id': '0',
 							'@mimeType': 'video/mp4',
-							'@codecs': 'avc1.4d002a,mp4a.40.2',
+							'@codecs': 'avc1.4d002a',
 							'@bandwidth': '4214000',
 							'@width': '1920',
 							'@height': '1080',

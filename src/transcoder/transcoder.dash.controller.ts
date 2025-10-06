@@ -14,27 +14,30 @@ export class TranscoderDASHController {
 	@Header('content-type', 'text/xml')
 	async startDash(@Param() params, @Query() query: StartTranscodeDto) {
 		const session = this.transcoderService.getSession(query.session);
-		let { id: sessionId, metadata } =
-			session &&
-			(query.subtitleTrack ? query.subtitleTrack == session.subtitleTrackIdx : true) &&
-			(query.audioTrack ? query.audioTrack == session.audioTrackIdx : true) &&
-			(query.url ? query.url == session.url : true)
-				? session
-				: await this.transcoderService.startSession({
-						type: 'dash',
-						url: query.url,
-						audioTrack: query.audioTrack,
-						subtitleTrack: query.subtitleTrack,
-						sessionId: query.session,
-						codec: query.codec,
-						offset: query.offset > 0 ? query.offset : null,
-						resolution: query.resolution,
-						preset: query.preset,
-					});
+		let {
+			id: sessionId,
+			metadata,
+			segmentLengthSeconds,
+		} = session &&
+		(query.subtitleTrack ? query.subtitleTrack == session.subtitleTrackIdx : true) &&
+		(query.audioTrack ? query.audioTrack == session.audioTrackIdx : true) &&
+		(query.url ? query.url == session.url : true)
+			? session
+			: await this.transcoderService.startSession({
+					type: 'dash',
+					url: query.url,
+					audioTrack: query.audioTrack,
+					subtitleTrack: query.subtitleTrack,
+					sessionId: query.session,
+					codec: query.codec,
+					offset: query.offset > 0 ? query.offset : null,
+					resolution: query.resolution,
+					preset: query.preset,
+				});
 
 		// await this.transcoderService.waitForSegments('dash', sessionId, 1, 1) //Wait for first 5 segments starting at seg 1
 
-		return generateManifest(sessionId, metadata, 1);
+		return generateManifest(sessionId, metadata, segmentLengthSeconds);
 	}
 
 	@Get('/:session/:stream/init.m4s')
