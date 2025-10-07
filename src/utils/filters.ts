@@ -4,7 +4,7 @@ import { Preset } from 'src/transcoder/transcoder.dto';
 import { cudaPresetOptions } from './hwaccel/cuda';
 
 export function buildSubtitleFilterInlineass(): string {
-	return `inlineass=font_scale=1.250000:font_path=/home/blakebuell/Development/realtime-transcoder/assets/NotoSans-Medium.otf:fontconfig_file=/home/blakebuell/Development/realtime-transcoder/assets/fonts.conf:language=en`;
+	return `inlineass=font_scale=1.250000:font_path=/usr/src/app/assets/NotoSans-Medium.otf:fontconfig_file=/usr/src/app/assets/fonts.conf:language=en`;
 }
 
 export function buildScaleFilter(resolution: string): string {
