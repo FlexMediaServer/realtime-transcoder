@@ -28,7 +28,7 @@ class Emitter extends require('events') {
 @Injectable()
 export class TranscoderService {
 	sessions: TranscoderSessionStore = {};
-	transcodeFolder = '/dev/shm';
+	transcodeFolder = process.env.TRANSCODE_FOLDER || '/tmp';
 
 	eventBus = new Emitter();
 
