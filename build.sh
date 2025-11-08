@@ -1,0 +1,1 @@
+docker buildx build . -t ghcr.io/plextra/realtime-transcoder --push

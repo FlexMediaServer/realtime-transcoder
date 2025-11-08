@@ -54,9 +54,6 @@ export class TranscoderService {
 			console.log(`Filling segment range: ${lastSegment.index + 1} - ${segmentIndex - 1}`);
 			this.fillSegments(sessionId, streamIndex, lastSegment.index + 1, segmentIndex);
 		}
-		// for (let index in [...Array()]) {
-
-		// }
 
 		this.eventBus.emit(`segmentComplete-${sessionId}-${streamIndex}-${segmentIndex}`);
 		segments.push({
@@ -205,7 +202,8 @@ export class TranscoderService {
 			])
 			.map('video')
 			.map('audio')
-			.audioCodec('libfdk_aac')
+			.audioCodec('libopus')
+			// .audioCodec('libfdk_aac')
 			.audioChannels(2)
 			.audioBitrate('192k')
 			.videoCodec(getEncoder(codec))
@@ -213,7 +211,7 @@ export class TranscoderService {
 			.withFPS(Math.round(fps))
 			.outputOptions(
 				[
-					'-profile:a aac_low',
+					// '-profile:a aac_low',
 					choosePresetOptions(preset),
 					subtitleTrackIdx ? `-map_inlineass 0:${subtitleTrackIdx}` : null,
 					'-forced-idr:0 1',

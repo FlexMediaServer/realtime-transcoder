@@ -1,0 +1,30 @@
+{
+	"name": "Transcoder",
+	"runArgs": [
+		"--gpus",
+		"all",
+		"-p=32402:32402"
+	],
+	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+	"build": {
+		// Path is relative to the devcontainer.json file.
+		"dockerfile": "Dockerfile"
+	},
+	// Features to add to the dev container. More info: https://containers.dev/features.
+	// "features": {},
+	"customizations": {
+		"vscode": {
+			"settings": {},
+			"extensions": [
+				"streetsidesoftware.code-spell-checker"
+			]
+		}
+	},
+	"portsAttributes": {
+		"32402": {
+			"onAutoForward": "notify"
+		}
+	},
+	"postCreateCommand": "pnpm install"
+	// "remoteUser": "root"
+}
