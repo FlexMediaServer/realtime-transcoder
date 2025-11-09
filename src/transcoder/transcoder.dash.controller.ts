@@ -54,7 +54,7 @@ export class TranscoderDASHController {
 
 	@Get('/:session/:stream/:segment.m4s')
 	async getSegmentDash(@Res() res, @Param() params) {
-		console.log(params);
+		console.debug(`[${params.session}] Getting segment (dash)`, params)
 		const session = this.transcoderService.getSession(params.session);
 		if (!session) throw new NotFoundException();
 		// console.log(session);

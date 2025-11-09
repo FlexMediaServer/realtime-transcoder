@@ -50,7 +50,7 @@ export function generateManifest(sessionId: string, metadata: Ffmpeg.FfprobeData
 						Representation: {
 							'@id': '1',
 							'@mimeType': 'audio/mp4',
-							'@codecs': 'opus',
+							'@codecs': 'mp4a.40.29',
 							'@bandwidth': '256000',
 							'@audioSamplingRate': '48000',
 							AudioChannelConfiguration: {

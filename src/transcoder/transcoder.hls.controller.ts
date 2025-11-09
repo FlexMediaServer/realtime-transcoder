@@ -50,7 +50,7 @@ export class TranscoderHLSController {
 
 	@Get('/:session/base/:segment.ts')
 	async getSegment(@Res() res, @Param() params) {
-		console.log(params);
+		console.debug(`[${params.session}] Getting segment (hls)`, params)
 		// await waitForFile(`/tmp/transcode/${params.session}/${params.segment}.ts`);
 		const session = this.transcoderService.getSession(params.session);
 		if (!session) throw new NotFoundException();

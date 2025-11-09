@@ -10,7 +10,7 @@ export function generatePlaylist(session: TranscoderSession, segmentLength = 1) 
 		mediaSequenceBase: 0,
 		endlist: true,
 		start: session.offset > 0 ? { offset: session.offset, precise: false } : undefined,
-		segments: Array.from({ length: session.metadata.format.duration / segmentLength }, (_, i) => i)
+		segments: Array.from({ length: Math.floor((session.metadata.format.duration / segmentLength) - 0.5) }, (_, i) => i)
 			.map(
 				(index) =>
 					new Segment({

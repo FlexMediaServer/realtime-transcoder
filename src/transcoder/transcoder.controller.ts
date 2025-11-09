@@ -25,12 +25,31 @@ export class TranscoderController {
 				manifest.MPD.Period.AdaptationSet = [manifest.MPD.Period.AdaptationSet];
 
 			for (const AdaptationSet of manifest.MPD.Period.AdaptationSet) {
-				// console.log(AdaptationSet['@id'], AdaptationSet.Representation.SegmentTemplate['@startNumber']);
-				this.transcoderService.segmentComplete(
-					params.id,
-					parseInt(AdaptationSet['@id']),
-					parseInt(AdaptationSet.Representation.SegmentTemplate['@startNumber']),
-				);
+				let startNumber = AdaptationSet.Representation.SegmentTemplate['@startNumber'];
+
+				const S = AdaptationSet.Representation.SegmentTemplate?.SegmentTimeline?.['S'];
+
+				const segments = Array.isArray(S) ? S : [S];
+
+				for (let segment of segments) {
+					this.transcoderService.segmentComplete(
+						params.id,
+						parseInt(AdaptationSet['@id']),
+						parseInt(startNumber),
+					);
+					startNumber++
+
+					if (segment['@r']) {
+						for (let i in [...Array(parseInt(segment['@r']))]) {
+							this.transcoderService.segmentComplete(
+								params.id,
+								parseInt(AdaptationSet['@id']),
+								parseInt(startNumber),
+							);
+							startNumber++
+						}
+					}
+				}
 			}
 		});
 	}
@@ -43,7 +62,6 @@ export class TranscoderController {
 				.split('\n')
 				.filter((row) => !row.startsWith('#') && row !== '')
 				.reverse();
-			// console.log(rows);
 			if (rows.length <= 0) return;
 			const segment = rows[0].split(',')[0].split('.')[0];
 			this.transcoderService.segmentComplete(params.id, 0, Math.round(parseInt(segment)));

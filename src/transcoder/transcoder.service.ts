@@ -37,6 +37,7 @@ export class TranscoderService {
 
 		for (const index of Array.from({ length: endSegmentIndex - startSegmentIndex }, (_, i) => i + startSegmentIndex)) {
 			this.eventBus.emit(`segmentComplete-${sessionId}-${streamIndex}-${index}`);
+			console.debug(`[${sessionId}] Segment complete (Stream: ${streamIndex} Segment: ${index})`);
 			segments.push({
 				index: index,
 				read: false,
@@ -51,7 +52,7 @@ export class TranscoderService {
 		const lastSegment = segments ? segments[segments.length - 1] : undefined;
 		//ffmpeg sometimes misses a segment on the progress reporting. This just fills in the blanks.
 		if (lastSegment && segmentIndex - lastSegment?.index > 1 && segmentIndex - lastSegment?.index < 3) {
-			console.log(`Filling segment range: ${lastSegment.index + 1} - ${segmentIndex - 1}`);
+			console.debug(`[${sessionId}] Filling segment range: ${lastSegment.index + 1} - ${segmentIndex - 1}`);
 			this.fillSegments(sessionId, streamIndex, lastSegment.index + 1, segmentIndex);
 		}
 
@@ -60,6 +61,7 @@ export class TranscoderService {
 			index: segmentIndex,
 			read: false,
 		});
+		console.debug(`[${sessionId}] Segment complete (Stream: ${streamIndex} Segment: ${segmentIndex})`);
 	}
 
 	/*
@@ -82,7 +84,7 @@ export class TranscoderService {
 	}) {
 		const session = this.getSession(sessionId);
 		if (session) {
-			console.log('Killing existing session: ', session.id);
+			console.debug(`[${session.id}] Killing existing session`);
 			session.ffmpeg.kill();
 		}
 
@@ -138,7 +140,7 @@ export class TranscoderService {
 			Ffmpeg(url)
 				.outputOptions([`-map 0:${streamIdx}`])
 				.on('start', (command) => {
-					console.log(command);
+					console.debug(`[${sessionId}] Starting ffmpeg...`, command);
 				})
 				.on('end', () => resolve(`${this.transcodeFolder}/${sessionId}-subtitle.${stream.codec_name}`))
 				.on('error', reject)
@@ -162,7 +164,7 @@ export class TranscoderService {
 
 		this.sessions[sessionId].lastSeekIndex = segmentIndex;
 
-		console.log(segmentIndex);
+		console.debug(`[${sessionId}] Starting segment: ${segmentIndex}`);
 
 		const ffmpeg = Ffmpeg(url, { cwd: `${this.transcodeFolder}/${sessionId}` })
 			.inputOptions(
@@ -202,8 +204,8 @@ export class TranscoderService {
 			])
 			.map('video')
 			.map('audio')
-			.audioCodec('libopus')
-			// .audioCodec('libfdk_aac')
+			// .audioCodec('libopus')
+			.audioCodec('libfdk_aac')
 			.audioChannels(2)
 			.audioBitrate('192k')
 			.videoCodec(getEncoder(codec))
@@ -211,7 +213,7 @@ export class TranscoderService {
 			.withFPS(Math.round(fps))
 			.outputOptions(
 				[
-					// '-profile:a aac_low',
+					'-profile:a aac_low',
 					choosePresetOptions(preset),
 					subtitleTrackIdx ? `-map_inlineass 0:${subtitleTrackIdx}` : null,
 					'-forced-idr:0 1',
@@ -250,7 +252,7 @@ export class TranscoderService {
 
 		ffmpeg
 			.on('start', function (commandLine) {
-				console.log('Spawned Ffmpeg with command: ' + commandLine);
+				console.debug(`[${sessionId}] Starting ffmpeg...`, commandLine);
 				// fs.appendFileSync(`logs/${id}`, 'Spawned Ffmpeg with command: ' + commandLine + '\n');
 			})
 			.on(
@@ -266,8 +268,8 @@ export class TranscoderService {
 					const throttle = (segmentIndex - Math.max(lastSeekIndex, currentPositionIndex)) * segmentLengthSeconds >= segmentThrottleSeconds;
 
 					if (throttle && !throttleTimeout) {
-						console.log(
-							`Session ${sessionId} throttled... ${(segmentIndex - Math.max(lastSeekIndex, currentPositionIndex)) * segmentLengthSeconds >= segmentThrottleSeconds} >= ${segmentThrottleSeconds}`,
+						console.debug(
+							`[${sessionId}] Session throttled... ${(segmentIndex - Math.max(lastSeekIndex, currentPositionIndex)) * segmentLengthSeconds >= segmentThrottleSeconds} >= ${segmentThrottleSeconds}`,
 						);
 						ffmpeg.kill('SIGSTOP');
 						this.sessions[sessionId].throttled = true;
@@ -278,7 +280,8 @@ export class TranscoderService {
 						}, 5000);
 					}
 
-					console.log(
+					console.debug(
+						`[${sessionId}] Transcode Progress - `,
 						'Current Timemark:',
 						currentTimemark,
 						' Current Segment:',
@@ -299,7 +302,7 @@ export class TranscoderService {
 				// fs.appendFileSync(`logs/${id}`, stderrLine + '\n');
 			})
 			.on('end', () => {
-				console.log('Transcode finished.');
+				console.debug(`[${sessionId}] Transcode finished.`);
 			})
 			// .output(type == 'dash' ? `manifest` : type == 'hls' ? `%d.ts` : '%d.mkv')
 			.run();
@@ -308,7 +311,7 @@ export class TranscoderService {
 	}
 
 	async seek(sessionId, segmentIndex) {
-		console.log(`Seek to ${segmentIndex}`);
+		console.debug(`[${sessionId}] Seeking to segment: ${segmentIndex}`);
 		const session = this.sessions[sessionId];
 		session.ffmpeg.kill();
 
@@ -345,7 +348,7 @@ export class TranscoderService {
 		// if (session.currentPositionIndex + 1 == parseInt(params.segment)) {
 		if (session.throttled) {
 			if (session.lastSegmentIndex - segmentIndex <= 10) {
-				console.log(`Session ${session.id} resumed`);
+				console.debug(`${session.id} Session resumed`);
 				session.ffmpeg.kill('SIGCONT');
 				session.throttled = false;
 			}
