@@ -10,7 +10,7 @@ export class TranscoderController {
 	home () {
 		return `
 		    <div class="header">
-				<img width="64px" src="https://avatars.githubusercontent.com/u/191876783?s=400&u=31a28945648f2ee2323dcb72b7d2384e9bcdb115&v=4" />
+				<img width="72px" src="https://avatars.githubusercontent.com/u/191876783?s=400&u=31a28945648f2ee2323dcb72b7d2384e9bcdb115&v=4" />
 				<h1>Plextra Transcoder</h1>
 			</div>
 			<p>Active Sessions: ${Object.entries(this.transcoderService.sessions).length}</p>
@@ -62,7 +62,11 @@ export class TranscoderController {
 			<style>
 
 				.header {
-					background-color: #222;
+				    display: flex;
+					flex-direction: row;
+					gap: 20px;
+					background-color: #282a2d;
+					color: white;
 				}
 
 				html, body {
@@ -137,7 +141,7 @@ export class TranscoderController {
 					startNumber++
 
 					if (segment['@r']) {
-						for (let _ in new Array(Number.parseInt(segment['@r']))) {
+						for (let _ in [...Array(Number.parseInt(segment['@r']))]) {
 							this.transcoderService.segmentComplete(
 								params.id,
 								Number.parseInt(AdaptationSet['@id']),
