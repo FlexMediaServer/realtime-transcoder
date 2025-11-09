@@ -1,11 +1,13 @@
-import { Body, Controller, Delete, Get, Header, NotFoundException, Param, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, NotFoundException, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { TranscoderService } from './transcoder.service';
 import { fromXML } from 'from-xml';
 import { parse } from 'csv-parse';
+import { BasicAuthGuard } from 'src/middleware/basic-auth.guard';
 @Controller()
 export class TranscoderController {
 	constructor(private readonly transcoderService: TranscoderService) {}
 
+	@UseGuards(BasicAuthGuard)
 	@Get('/')
 	home () {
 		return `
@@ -13,9 +15,8 @@ export class TranscoderController {
 				<img width="72px" src="https://avatars.githubusercontent.com/u/191876783?s=400&u=31a28945648f2ee2323dcb72b7d2384e9bcdb115&v=4" />
 				<h1>Plextra Transcoder</h1>
 			</div>
-			<p>Active Sessions: ${Object.entries(this.transcoderService.sessions).length}</p>
 			<table>
-				<caption><strong>Individual Session Details</strong></caption>
+				<caption><strong>Individual Session Details (${Object.entries(this.transcoderService.sessions).length} active)</strong></caption>
 				<thead>
 					<tr>
 						<th>Session ID</th>
@@ -61,6 +62,12 @@ export class TranscoderController {
 			</table>
 			<style>
 
+				caption {
+				    border-top: 1px solid white;
+					background-color: #282a2d;
+					padding: 20px;
+				}
+
 				.header {
 				    display: flex;
 					flex-direction: row;
@@ -70,28 +77,35 @@ export class TranscoderController {
 				}
 
 				html, body {
+					background-color: #282a2d;
 					margin: 0;
 					padding: 0;
 				}
 
 				table {
+				    background-color: #282a2d;
+					color: white;
 					width: 100%;
 				}
 
 				table, th, td {
 					border-collapse: collapse;
-					border: 1px solid black;
+					border: 1px solid white;
 				}
 
 				th, td {
 					padding-left: 10px;
 					padding-right: 10px;
 				}
+
+				tr, td, th {
+					max-height: 50px;
+				}
 			</style>
 			<script>
 					setInterval(() => {
   						location.reload();
-					}, 5000);
+					}, 10000);
 
 					function dropSession(id) {
 						fetch('/transcoder/' + id, {
@@ -99,6 +113,7 @@ export class TranscoderController {
 						})
 						.then(res => {
 							if(!res.ok) throw new Error('Request failed: ' + res.status);
+							location.reload();
 							return res.json();
 						})
 						.then(data => alert('Deleted:', data))
@@ -111,6 +126,7 @@ export class TranscoderController {
 	@Get('/transcoder/ping')
 	ping() {}
 
+	@UseGuards(BasicAuthGuard)
 	@Delete('/transcoder/:id')
 	dropSession (@Param('id') id) {
 		if (this.transcoderService.getSession(id) == undefined) throw new NotFoundException();
