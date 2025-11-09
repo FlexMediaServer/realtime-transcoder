@@ -9,10 +9,13 @@ export class TranscoderController {
 	@Get('/')
 	home () {
 		return `
-			<h1>Transcoder:</h1>
+		    <div class="header">
+				<img width="64px" src="https://avatars.githubusercontent.com/u/191876783?s=400&u=31a28945648f2ee2323dcb72b7d2384e9bcdb115&v=4" />
+				<h1>Plextra Transcoder</h1>
+			</div>
 			<p>Active Sessions: ${Object.entries(this.transcoderService.sessions).length}</p>
 			<table>
-				<caption>Individual Session Details</caption>
+				<caption><strong>Individual Session Details</strong></caption>
 				<thead>
 					<tr>
 						<th>Session ID</th>
@@ -57,8 +60,28 @@ export class TranscoderController {
 				</tbody>
 			</table>
 			<style>
+
+				.header {
+					background-color: #222;
+				}
+
+				html, body {
+					margin: 0;
+					padding: 0;
+				}
+
+				table {
+					width: 100%;
+				}
+
 				table, th, td {
+					border-collapse: collapse;
 					border: 1px solid black;
+				}
+
+				th, td {
+					padding-left: 10px;
+					padding-right: 10px;
 				}
 			</style>
 			<script>

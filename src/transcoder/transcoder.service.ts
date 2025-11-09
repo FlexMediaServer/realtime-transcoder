@@ -36,7 +36,7 @@ export class TranscoderService {
 		setInterval (() => {
 			for (let session of Object.values(this.sessions)) {
 				const inactiveFor = Date.now() - session.lastActivityTs;
-				if (inactiveFor > (10 * 60 * 1000)) {
+				if (inactiveFor > (30 * 60 * 1000)) {
 					this.stopSession(session.id);
 				}
 			}
