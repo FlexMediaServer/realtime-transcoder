@@ -2,21 +2,22 @@ import { Body, Controller, Get, Header, Param, Post, Query, Req, Res } from '@ne
 import { TranscoderService } from './transcoder.service';
 import { fromXML } from 'from-xml';
 import { parse } from 'csv-parse';
-@Controller('transcoder')
+@Controller()
 export class TranscoderController {
-	constructor(private transcoderService: TranscoderService) {}
+	constructor(private readonly transcoderService: TranscoderService) {}
 
-	// @Post('progress')
-	// progress (@Body() body, @Req() req) {
-	// 	req.on('data', (data) => {
-	// 		console.log(data)
-	// 	});
-	// }
+	@Get('/')
+	home () {
+		return `
+			<h1>Transcoder:</h1>
+			<p>Active Sessions: ${Object.entries(this.transcoderService.sessions).length}</p>
+		`
+	}
 
-	@Get('/ping')
+	@Get('/transcoder/ping')
 	ping() {}
 
-	@Post('/status/:id/manifest_mpd')
+	@Post('/transcoder/status/:id/manifest_mpd')
 	dashManifest(@Req() req, @Param() params) {
 		req.setEncoding('utf8');
 		req.on('data', (data) => {
@@ -34,17 +35,17 @@ export class TranscoderController {
 				for (let segment of segments) {
 					this.transcoderService.segmentComplete(
 						params.id,
-						parseInt(AdaptationSet['@id']),
-						parseInt(startNumber),
+						Number.parseInt(AdaptationSet['@id']),
+						Number.parseInt(startNumber),
 					);
 					startNumber++
 
 					if (segment['@r']) {
-						for (let i in [...Array(parseInt(segment['@r']))]) {
+						for (let _ in new Array(Number.parseInt(segment['@r']))) {
 							this.transcoderService.segmentComplete(
 								params.id,
-								parseInt(AdaptationSet['@id']),
-								parseInt(startNumber),
+								Number.parseInt(AdaptationSet['@id']),
+								Number.parseInt(startNumber),
 							);
 							startNumber++
 						}
@@ -54,7 +55,7 @@ export class TranscoderController {
 		});
 	}
 
-	@Post('/status/:id/manifest_csv')
+	@Post('/transcoder/status/:id/manifest_csv')
 	segmentList(@Req() req, @Param() params) {
 		req.setEncoding('utf8');
 		req.on('data', (data) => {
@@ -67,18 +68,4 @@ export class TranscoderController {
 			this.transcoderService.segmentComplete(params.id, 0, Math.round(parseInt(segment)));
 		});
 	}
-
-	// @Post('/:id/progress')
-	// progress(@Req() req, @Res() res: Response) {
-	// 	req.on('data', (data) => {
-	// 		console.log(data.toString());
-	// 	});
-	// }
-
-	// @Post('/:id/progress_url')
-	// progressUrl(@Req() req, @Res() res: Response) {
-	// 	req.on('data', (data) => {
-	// 		console.log(data.toString());
-	// 	});
-	// }
 }
