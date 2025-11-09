@@ -32,6 +32,25 @@ export class TranscoderService {
 
 	eventBus = new Emitter();
 
+	constructor () {
+		setInterval (() => {
+			for (let session of Object.values(this.sessions)) {
+				const inactiveFor = Date.now() - session.lastActivityTs;
+				if (inactiveFor > (10 * 60 * 1000)) {
+					this.stopSession(session.id);
+				}
+			}
+		}, 5 * 60 * 1000)
+	}
+
+
+	stopSession (sessionId) {
+		this.sessions[sessionId]?.ffmpeg?.kill()
+		delete this.sessions[sessionId];
+		if (fs.existsSync(`${this.transcodeFolder}/${sessionId}`))
+			fs.rmSync(`${this.transcodeFolder}/${sessionId}`, { recursive: true, force: true });
+	}
+
 	fillSegments(sessionId, streamIndex, startSegmentIndex: number, endSegmentIndex: number) {
 		const segments = this.sessions[sessionId].segments[`${streamIndex}`];
 
@@ -96,7 +115,7 @@ export class TranscoderService {
 
 		this.sessions[sessionId] = {
 			id: sessionId,
-
+			lastActivityTs: Date.now(),
 			url: url,
 			offset: offset,
 			audioTrackIdx: audioTrack,
@@ -163,6 +182,7 @@ export class TranscoderService {
 		if (offset) segmentIndex = Math.floor(offset / segmentLengthSeconds);
 
 		this.sessions[sessionId].lastSeekIndex = segmentIndex;
+		this.sessions[sessionId].lastActivityTs = Date.now();
 
 		console.debug(`[${sessionId}] Starting segment: ${segmentIndex}`);
 
@@ -313,6 +333,7 @@ export class TranscoderService {
 	async seek(sessionId, segmentIndex) {
 		console.debug(`[${sessionId}] Seeking to segment: ${segmentIndex}`);
 		const session = this.sessions[sessionId];
+		session.lastActivityTs = Date.now();
 		session.ffmpeg.kill();
 
 		for (const file of fs.readdirSync(`${this.transcodeFolder}/${sessionId}`)) {
@@ -329,6 +350,7 @@ export class TranscoderService {
 	markSegmentAsRead(sessionId, streamIndex: number = 0, segmentIndex: number) {
 		// let index = Object.values(this.sessions[sessionId].segments).findIndex((seg) => seg.index == segmentIndex && seg.stream == streamIndex);
 		const index = this.sessions[sessionId].segments[streamIndex].findIndex((stream) => stream.index == segmentIndex);
+		this.sessions[sessionId].lastActivityTs = Date.now();
 		this.sessions[sessionId].segments[streamIndex][index] = {
 			index: segmentIndex,
 			read: true,
@@ -337,6 +359,8 @@ export class TranscoderService {
 
 	async getSegment(sessionId, streamIndex: number = 0, segmentIndex: number, outputStream) {
 		const session = this.getSession(sessionId);
+
+		session.lastActivityTs = Date.now();
 
 		const segmentPath =
 			session.type == 'dash'

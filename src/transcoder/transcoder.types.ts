@@ -4,6 +4,7 @@ import { Preset } from './transcoder.dto';
 export type TranscoderSession = {
 	/** Randomly generated 20 digit string to identify the transcoder session */
 	id: string;
+	lastActivityTs: number;
 	/** Segment length may very depending on the client that is being used. Example: most clients allow 1 second segments for faster loading, but some clients prefer larger segments such as 3 seconds */
 	segmentLengthSeconds: number;
 	/** Represents the last segment that the transcoder has processed */
