@@ -32,20 +32,22 @@ export class TranscoderService {
 
 	eventBus = new Emitter();
 
-	constructor () {
-		setInterval (() => {
-			for (let session of Object.values(this.sessions)) {
-				const inactiveFor = Date.now() - session.lastActivityTs;
-				if (inactiveFor > (30 * 60 * 1000)) {
-					this.stopSession(session.id);
+	constructor() {
+		setInterval(
+			() => {
+				for (const session of Object.values(this.sessions)) {
+					const inactiveFor = Date.now() - session.lastActivityTs;
+					if (inactiveFor > 30 * 60 * 1000) {
+						this.stopSession(session.id);
+					}
 				}
-			}
-		}, 5 * 60 * 1000)
+			},
+			5 * 60 * 1000,
+		);
 	}
 
-
-	stopSession (sessionId) {
-		this.sessions[sessionId]?.ffmpeg?.kill()
+	stopSession(sessionId) {
+		this.sessions[sessionId]?.ffmpeg?.kill();
 		delete this.sessions[sessionId];
 		if (fs.existsSync(`${this.transcodeFolder}/${sessionId}`))
 			fs.rmSync(`${this.transcodeFolder}/${sessionId}`, { recursive: true, force: true });
@@ -177,7 +179,7 @@ export class TranscoderService {
 		// const fps = Math.round((parseInt(fpsParsed[0]) / parseInt(fpsParsed[1])) * 1000) / 1000;
 		const fps = parseInt(fpsParsed[0]) / parseInt(fpsParsed[1]);
 		//
-		const keyFrameInterval = Math.round(fps * segmentLengthSeconds);
+		const keyFrameInterval = Math.floor(fps * segmentLengthSeconds);
 
 		if (offset) segmentIndex = Math.floor(offset / segmentLengthSeconds);
 
@@ -218,7 +220,7 @@ export class TranscoderService {
 				},
 				{
 					inputs: audioTrackIdx > -1 ? `0:${audioTrackIdx}` : '0:a:0',
-					filter: `aresample=async=1:ochl='stereo':rematrix_maxval=0.000000dB:osr=48000`,
+					filter: `aresample=async=1:ochl='stereo':rematrix_maxval=0.000000dB:osr=48000:first_pts=0`,
 					outputs: 'audio',
 				},
 			])
