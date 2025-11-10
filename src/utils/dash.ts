@@ -12,13 +12,13 @@ export function generateManifest(sessionId: string, metadata: Ffmpeg.FfprobeData
 				'urn:mpeg:dash:schema:mpd:2011 http://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/DASH-MPD.xsd',
 			'@profiles': 'urn:mpeg:dash:profile:isoff-live:2011',
 			'@type': 'static',
-			'@mediaPresentationDuration': secondsToIsoPt(metadata.format.duration),
+			'@mediaPresentationDuration': secondsToIsoPt(Math.floor(metadata.format.duration / segmentLength) * segmentLength),
 			'@maxSegmentDuration': 'PT10S',
 			'@minBufferTime': 'PT10S',
 			Period: {
 				'@start': 'PT0S',
 				'@id': '0',
-				'@duration': secondsToIsoPt(metadata.format.duration),
+				'@duration': secondsToIsoPt(Math.floor(metadata.format.duration / segmentLength) * segmentLength),
 				AdaptationSet: [
 					{
 						'@segmentAlignment': 'true',
@@ -76,6 +76,11 @@ export function dashOutputOptions(sessionId, segmentIndex, segmentLength) {
 		'-media_seg_name $RepresentationID$-$Number%01d$.m4s',
 		'-window_size 5',
 		'-delete_removed false',
+
+		// '-frag_type every_frame',
+		// '-write_prft 0',
+		// '-flush_packets 1',
+
 		segmentIndex !== 0 ? `-skip_to_segment ${segmentIndex}` : undefined,
 		// '-time_delta 0.0625',
 		`-manifest_name http://localhost:32402/transcoder/status/${sessionId}/manifest_mpd`,

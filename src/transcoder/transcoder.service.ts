@@ -177,7 +177,7 @@ export class TranscoderService {
 		// const fps = Math.round((parseInt(fpsParsed[0]) / parseInt(fpsParsed[1])) * 1000) / 1000;
 		const fps = parseInt(fpsParsed[0]) / parseInt(fpsParsed[1]);
 		//
-		const keyFrameInterval = Math.floor(fps * segmentLengthSeconds);
+		const keyFrameInterval = Math.round(fps * segmentLengthSeconds);
 
 		if (offset) segmentIndex = Math.floor(offset / segmentLengthSeconds);
 
@@ -204,9 +204,9 @@ export class TranscoderService {
 							? `-ss ${offset}`
 							: undefined,
 					'-reconnect 1',
-					'-reconnect_at_eof 1',
-					'-reconnect_streamed 1',
-					'-reconnect_delay_max 4294',
+					// '-reconnect_at_eof 1',
+					// '-reconnect_streamed 1',
+					// '-reconnect_delay_max 4294',
 				].filter((arg) => arg),
 			)
 			.output(type == 'dash' ? `manifest.mpd` : type == 'hls' ? `%d.ts` : '%d.mkv')

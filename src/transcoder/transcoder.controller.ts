@@ -180,8 +180,10 @@ export class TranscoderController {
 				.filter((row) => !row.startsWith('#') && row !== '')
 				.reverse();
 			if (rows.length <= 0) return;
-			const segment = rows[0].split(',')[0].split('.')[0];
-			this.transcoderService.segmentComplete(params.id, 0, Math.round(parseInt(segment)));
+			for (let row of rows) {
+				const segment = row.split(',')[0].split('.')[0];
+				this.transcoderService.segmentComplete(params.id, 0, Math.round(parseInt(segment)));
+			}
 		});
 	}
 }

@@ -34,10 +34,6 @@ export class TranscoderHLSController {
 						preset: query.preset,
 					});
 
-		const segmentIndex = Math.floor(session.offset / session.segmentLengthSeconds);
-
-		// await this.transcoderService.waitForSegment('hls', session.id, 0, segmentIndex);
-
 		return generateMasterPlaylist(session);
 	}
 
