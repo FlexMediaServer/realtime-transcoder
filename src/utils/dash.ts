@@ -81,7 +81,7 @@ export function dashOutputOptions(sessionId, segmentIndex, segmentLength) {
 		// '-write_prft 0',
 		// '-flush_packets 1',
 
-		segmentIndex !== 0 ? `-skip_to_segment ${segmentIndex}` : undefined,
+		segmentIndex !== 0 ? `-skip_to_segment ${segmentIndex}` : '-skip_to_segment 1',
 		// '-time_delta 0.0625',
 		`-manifest_name http://localhost:32402/transcoder/status/${sessionId}/manifest_mpd`,
 		'-method POST',
