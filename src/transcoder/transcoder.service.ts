@@ -195,9 +195,9 @@ export class TranscoderService {
 					'-analyzeduration 20000000',
 					'-probesize 20000000',
 					...(process.env.TRANSCODE_TYPE === 'nvenc'
-						? ['-hwaccel nvdec']
+						? ['-hwaccel auto']
 						: process.env.TRANSCODE_TYPE === 'vaapi'
-							? ['-hwaccel vaapi']
+							? ['-hwaccel auto']
 							: []),
 					// '-hwaccel_output_format cuda', //CUDA
 					segmentIndex !== 0 && (type == 'hls' || type == 'dash')

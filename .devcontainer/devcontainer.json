@@ -10,6 +10,14 @@
 		// Path is relative to the devcontainer.json file.
 		"dockerfile": "Dockerfile"
 	},
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:1": {
+			"version": "latest"
+		}
+	},
+	"mounts": [
+		"source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+	],
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
 	"customizations": {
