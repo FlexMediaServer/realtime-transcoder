@@ -179,7 +179,7 @@ export class TranscoderService {
 		// const fps = Math.round((parseInt(fpsParsed[0]) / parseInt(fpsParsed[1])) * 1000) / 1000;
 		const fps = parseInt(fpsParsed[0]) / parseInt(fpsParsed[1]);
 		//
-		const keyFrameInterval = Math.floor(fps * segmentLengthSeconds);
+		const keyFrameInterval = Math.round(fps * segmentLengthSeconds);
 
 		if (offset) segmentIndex = Math.floor(offset / segmentLengthSeconds);
 
@@ -220,7 +220,7 @@ export class TranscoderService {
 				},
 				{
 					inputs: audioTrackIdx > -1 ? `0:${audioTrackIdx}` : '0:a:0',
-					filter: `aresample=async=1:ochl='stereo':rematrix_maxval=0.000000dB:osr=48000:first_pts=0`,
+					filter: `aresample=async=1:ochl='stereo':rematrix_maxval=0.000000dB:osr=48000${segmentIndex == 0 ? ':first_pts=0' : ''}`,
 					outputs: 'audio',
 				},
 			])
