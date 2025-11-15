@@ -1,4 +1,4 @@
-import { Controller, Get, Header, NotFoundException, Param, Query, Res } from '@nestjs/common';
+import { Controller, Get, Header, NotFoundException, Param, Query, Req, Res } from '@nestjs/common';
 import { TranscoderService } from './transcoder.service';
 import fs from 'fs';
 import { generateManifest } from 'src/utils/dash';
@@ -12,15 +12,14 @@ export class TranscoderDASHController {
 
 	@Get('/start.mpd')
 	@Header('content-type', 'text/xml')
-	async startDash(@Param() params, @Query() query: StartTranscodeDto) {
+	async startDash(@Req() req, @Param() params, @Query() query: StartTranscodeDto) {
+		console.debug(`[${query.session}] Started session with URL: ${req.url}`)
+
 		const session = this.transcoderService.getSession(query.session);
-		const {
-			id: sessionId,
-			metadata,
-			segmentLengthSeconds,
-		} = session &&
+		const newSession = session &&
 		(query.subtitleTrack ? query.subtitleTrack == session.subtitleTrackIdx : true) &&
 		(query.audioTrack ? query.audioTrack == session.audioTrackIdx : true) &&
+		(query.offset ? query.offset == session.offset : true) &&
 		(query.url ? query.url == session.url : true)
 			? session
 			: await this.transcoderService.startSession({
@@ -31,13 +30,14 @@ export class TranscoderDASHController {
 					sessionId: query.session,
 					codec: query.codec,
 					offset: query.offset > 0 ? query.offset : null,
+					// startAtZeroIndex: query.startAtZeroIndex,
 					resolution: query.resolution,
 					preset: query.preset,
 				});
 
 		// await this.transcoderService.waitForSegments('dash', sessionId, 1, 1) //Wait for first 5 segments starting at seg 1
 
-		return generateManifest(sessionId, metadata, segmentLengthSeconds);
+		return generateManifest(newSession.id, newSession);
 	}
 
 	@Get('/:session/:stream/init.m4s')
@@ -58,7 +58,7 @@ export class TranscoderDASHController {
 		const session = this.transcoderService.getSession(params.session);
 		if (!session) throw new NotFoundException();
 		// console.log(session);
-		await this.transcoderService.getSegment(session.id, parseInt(params.stream), parseInt(params.segment), res);
+		await session.getSegment(parseInt(params.stream), parseInt(params.segment), res);
 		res.end();
 	}
 }

@@ -13,36 +13,38 @@ export class TranscoderHTTPController {
 	/*
 		Deprecated
 	*/
-	// @Get('/start')
-	// async startHTTP(@Param() params, @Query() query: StartTranscodeDto, @Res() res, @Headers() headers) {
-	// 	console.log(headers['range'], query['offset']);
-	// 	let session = await this.transcoderService.startSession({
-	// 		type: 'http',
-	// 		url: query.url,
-	// 		audioTrack: query.audioTrack,
-	// 		subtitleTrack: query.subtitleTrack,
-	// 		sessionId: query.session,
-	// 		codec: query.codec,
-	// 		offset: query.offset > 0 ? query.offset : null,
-	// 		resolution: query.resolution,
-	// 		preset: query.preset,
-	// 	});
+	@Get('/start')
+	async startHTTP(@Param() params, @Query() query: StartTranscodeDto, @Res() res, @Headers() headers) {
+		console.log(headers['range'], query['offset']);
+		let session = await this.transcoderService.startSession({
+			type: 'http',
+			url: query.url,
+			audioTrack: query.audioTrack,
+			subtitleTrack: query.subtitleTrack,
+			sessionId: query.session,
+			codec: query.codec,
+			offset: query.offset > 0 ? query.offset : null,
+			resolution: query.resolution,
+			segmentThrottleSeconds: 240,
+			preset: query.preset,
+		});
 
-	// 	console.log('Session: ', session.id);
-	// 	await this.transcoderService.waitForSegment(session.id, 0, 1);
-	// 	console.log('Sending header');
-	// 	await pipeWait(fs.createReadStream(`${session.folderPath}/header`), res);
+		console.log('Session: ', session.id);
+		await session.waitForSegment(0, 1);
+		console.log('Sending header');
+		await pipeWait(fs.createReadStream(`${session.folderPath}/header`), res);
 
-	// 	let segment = session.currentPositionIndex + 1;
-	// 	let loopSegments = true;
+		let segment = session.currentPositionIndex + 1;
+		let loopSegments = true;
 
-	// 	while (loopSegments) {
-	// 		await this.transcoderService.getSegment(session.id, 0, segment, res);
-	// 		segment++;
-	// 	}
+		while (loopSegments) {
+			await session.getSegment(0, segment, res);
+			segment++;
+		}
 
-	// 	res.on('close', () => {
-	// 		loopSegments = false;
-	// 	});
-	// }
+		res.on('close', () => {
+			console.log('SOCKET CLOSED')
+			loopSegments = false;
+		});
+	}
 }

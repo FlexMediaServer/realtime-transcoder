@@ -1,16 +1,26 @@
 import { MasterPlaylist, MediaPlaylist, Segment } from 'hls-parser/types';
 import Ffmpeg from 'fluent-ffmpeg';
 import { stringify } from 'hls-parser';
-import { TranscoderSession, TranscoderSessionStore } from 'src/transcoder/transcoder.types';
+import { TranscoderSessionStore } from 'src/transcoder/transcoder.types';
+import { TranscodeSession } from 'src/transcoder/transcode.session';
 
-export function generatePlaylist(session: TranscoderSession, segmentLength = 1) {
+export function generatePlaylist(session: TranscodeSession, segmentLength = 1) {
+
+	let segmentCount = 0;
+
+	// if (session.startAtZeroIndex) {
+	// 	segmentCount = Math.floor(((session.metadata.format.duration - session.offset) / segmentLength))
+	// } else {
+		segmentCount = Math.floor((session.metadata.format.duration / segmentLength));
+	// }
+
 	const playlist = new MediaPlaylist({
 		targetDuration: segmentLength,
 		playlistType: 'VOD',
 		mediaSequenceBase: 0,
 		endlist: true,
-		start: session.offset > 0 ? { offset: session.offset, precise: false } : undefined,
-		segments: Array.from({ length: Math.floor((session.metadata.format.duration / segmentLength)) }, (_, i) => i)
+		start: session.offset > 0 /* && !session.startAtZeroIndex */ ? { offset: session.offset, precise: false } : undefined,
+		segments: Array.from({ length: segmentCount }, (_, i) => i)
 			.map(
 				(index) =>
 					new Segment({
@@ -25,26 +35,26 @@ export function generatePlaylist(session: TranscoderSession, segmentLength = 1) 
 	return stringify(playlist);
 }
 
-export function generateMasterPlaylist(session: TranscoderSession) {
+export function generateMasterPlaylist(session: TranscodeSession) {
 	return `#EXTM3U
 #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=8135000,RESOLUTION=1920x1080,FRAME-RATE=23.976000
 ${session.id}/base/index.m3u8`;
 }
 
-export function hlsOutputOptions(sessionId, segmentIndex: number, segmentLength: number) {
+export function hlsOutputOptions(session: InstanceType<typeof TranscodeSession>) {
 	return [
-		`-segment_start_number ${segmentIndex}`,
+		`-segment_start_number ${session.startIndex}`,
 		// '-segment_format mpegts',
 		'-segment_format mpegts',
 		'-f ssegment',
 		'-individual_header_trailer 0',
-		`-segment_time ${segmentLength}`,
+		`-segment_time ${session.segmentLengthSeconds}`,
 		// '-segment_copyts 1',
 		'-segment_time_delta 0.0625',
 		// '-segment_list_separate_stream_times 1',
 		// '-segment_list_unfinished 1',
 		'-segment_format_options output_ts_offset=10',
-		`-segment_list http://localhost:32402/transcoder/status/${sessionId}/manifest_csv`,
+		`-segment_list http://localhost:32402/transcoder/status/${session.id}/manifest_csv`,
 		'-segment_list_type csv',
 		'-segment_list_size 5',
 		'-max_delay 5000000',

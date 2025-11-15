@@ -1,21 +1,23 @@
-export function httpOutputOptions(sessionId, segmentLength: number) {
+import { TranscodeSession } from "src/transcoder/transcode.session";
+
+export function httpOutputOptions(session: InstanceType<typeof TranscodeSession>) {
 	return [
 		`-segment_start_number 0`,
 		'-segment_header_filename header',
 		'-segment_format matroska',
 		'-f segment',
 		// '-individual_header_trailer 0',
-		`-segment_time ${segmentLength}`,
+		`-segment_time ${session.segmentLengthSeconds}`,
 		// '-segment_copyts 1',
 		// '-segment_time_delta 0.0625',
 		'-segment_list_separate_stream_times 1',
 		'-segment_list_unfinished 1',
-		`-segment_list http://localhost:32402/transcoder/status/${sessionId}/manifest_csv`,
+		`-segment_list http://localhost:32402/transcoder/status/${session.id}/manifest_csv`,
 		'-segment_list_type csv',
 		'-segment_list_size 5',
 		// '-max_delay 5000000',
 		// '-flags +global_header',
-		'-segment_format_options live=1:strip_dovi=1',
+		// '-segment_format_options live=1:strip_dovi=1',
 		// '-segment_format_options strip_dovi=1:output_ts_offset=10'
 	];
 }

@@ -44,6 +44,7 @@ export type TranscoderSession = {
 	type: 'hls' | 'dash' | 'http';
 
 	offset: number;
+	startAtZeroIndex: boolean;
 
 	ffmpeg: any;
 };

@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { IsEnum, IsNotEmpty, IsNumber, IsNumberString, IsOptional, IsString, Matches } from 'class-validator';
+import { IsBoolean, IsEnum, IsNotEmpty, IsNumber, IsNumberString, IsOptional, IsString, Matches } from 'class-validator';
 
 export enum Preset {
 	ULTRAFAST = 'ultrafast',
@@ -29,6 +29,11 @@ export class StartTranscodeDto {
 	@Type(() => Number)
 	@IsNumber()
 	offset: number; //Offset defines the starting segment of the transcode session. Eg. you want to start at segment 40
+
+	@IsOptional()
+	@Type(() => Boolean)
+	@IsBoolean()
+	startAtZeroIndex: boolean //Starts HLS/DASH playlist at zero index while allowing offset/seek
 
 	@IsOptional()
 	@Type(() => Number)

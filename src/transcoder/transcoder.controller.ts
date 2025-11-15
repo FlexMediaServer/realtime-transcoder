@@ -23,7 +23,7 @@ export class TranscoderController {
 						<th>Last Activity</th>
 						<th>Segment Length</th>
 						<th>Current Segment Index</th>
-						<th>Last Segment Index</th>
+						<th>Last Transcoded Segment</th>
 						<th>Last Seek Index</th>
 						<th>Type</th>
 						<th>Session URL</th>
@@ -31,7 +31,7 @@ export class TranscoderController {
 						<th>Subtitle Track</th>
 						<th>Codec</th>
 						<th>Resolution</th>
-						<th>Throttled</th>
+						<th>Paused</th>
 						<th>Offset</th>
 						<th>Actions</th>
 					</tr>
@@ -44,7 +44,7 @@ export class TranscoderController {
 							<td>${new Date(session.lastActivityTs).toLocaleString()}</td>
 							<td>${session.segmentLengthSeconds}s</td>
 							<td>${session.currentPositionIndex}</td>
-							<td>${session.lastSegmentIndex}</td>
+							<td>${session.lastTranscodedSegment}</td>
 							<td>${session.lastSeekIndex}</td>
 							<td>${session.type}</td>
 							<td><a href="${session.url}">Source</a></td>
@@ -52,7 +52,7 @@ export class TranscoderController {
 							<td>${session.subtitleTrackIdx}</td>
 							<td>${session.codec}</td>
 							<td>${session.resolution}</td>
-							<td>${session.throttled}</td>
+							<td>${session.paused}</td>
 							<td>${session.offset}</td>
 							<td><button onclick="dropSession('${session.id}')">Drop Session</button></td>
 						</tr>
@@ -128,13 +128,17 @@ export class TranscoderController {
 
 	@UseGuards(BasicAuthGuard)
 	@Delete('/transcoder/:id')
-	dropSession (@Param('id') id) {
+	async dropSession (@Param('id') id) {
 		if (this.transcoderService.getSession(id) == undefined) throw new NotFoundException();
-		this.transcoderService.stopSession(id);
+		await this.transcoderService.getSession(id)?.stop()
+		delete this.transcoderService.sessions[id];
 	}
 
 	@Post('/transcoder/status/:id/manifest_mpd')
 	dashManifest(@Req() req, @Param() params) {
+
+		const session = this.transcoderService.getSession(params.id);
+
 		req.setEncoding('utf8');
 		req.on('data', (data) => {
 			const manifest = fromXML(data);
@@ -149,8 +153,7 @@ export class TranscoderController {
 				const segments = Array.isArray(S) ? S : [S];
 
 				for (let segment of segments) {
-					this.transcoderService.segmentComplete(
-						params.id,
+					session.segmentComplete(
 						Number.parseInt(AdaptationSet['@id']),
 						Number.parseInt(startNumber),
 					);
@@ -158,8 +161,7 @@ export class TranscoderController {
 
 					if (segment['@r']) {
 						for (let _ in [...Array(Number.parseInt(segment['@r']))]) {
-							this.transcoderService.segmentComplete(
-								params.id,
+							session.segmentComplete(
 								Number.parseInt(AdaptationSet['@id']),
 								Number.parseInt(startNumber),
 							);
@@ -173,6 +175,7 @@ export class TranscoderController {
 
 	@Post('/transcoder/status/:id/manifest_csv')
 	segmentList(@Req() req, @Param() params) {
+		const session = this.transcoderService.getSession(params.id);
 		req.setEncoding('utf8');
 		req.on('data', (data) => {
 			const rows = data
@@ -182,7 +185,7 @@ export class TranscoderController {
 			if (rows.length <= 0) return;
 			for (let row of rows) {
 				const segment = row.split(',')[0].split('.')[0];
-				this.transcoderService.segmentComplete(params.id, 0, Math.round(parseInt(segment)));
+				session.segmentComplete(0, Math.round(parseInt(segment)));
 			}
 		});
 	}

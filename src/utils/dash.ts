@@ -1,8 +1,19 @@
 import Ffmpeg from 'fluent-ffmpeg';
 import { toXML } from 'to-xml';
 import { secondsToIsoPt } from './time';
+import { TranscoderSession } from 'src/transcoder/transcoder.types';
+import { TranscodeSession } from 'src/transcoder/transcode.session';
 
-export function generateManifest(sessionId: string, metadata: Ffmpeg.FfprobeData, segmentLength = 5) {
+export function generateManifest(sessionId: string, session: TranscodeSession) {
+
+	let duration;
+	// if (session.startAtZeroIndex) {
+	// 	duration = Math.floor(((session.metadata.format.duration - session.offset) / session.segmentLengthSeconds)) * session.segmentLengthSeconds
+	// } else {
+		duration = Math.floor(session.metadata.format.duration / session.segmentLengthSeconds) * session.segmentLengthSeconds;
+	// }
+
+
 	const obj = {
 		MPD: {
 			'@xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance',
@@ -12,22 +23,22 @@ export function generateManifest(sessionId: string, metadata: Ffmpeg.FfprobeData
 				'urn:mpeg:dash:schema:mpd:2011 http://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/DASH-MPD.xsd',
 			'@profiles': 'urn:mpeg:dash:profile:isoff-live:2011',
 			'@type': 'static',
-			'@mediaPresentationDuration': secondsToIsoPt(Math.floor(metadata.format.duration / segmentLength) * segmentLength),
-			'@maxSegmentDuration': 'PT10S',
-			'@minBufferTime': 'PT10S',
+			'@mediaPresentationDuration': secondsToIsoPt(duration),
+			// '@maxSegmentDuration': 'PT10S',
+			// '@minBufferTime': 'PT10S',
 			Period: {
-				'@start': 'PT0S',
+				'@start': secondsToIsoPt(session.offset),
 				'@id': '0',
-				'@duration': secondsToIsoPt(Math.floor(metadata.format.duration / segmentLength) * segmentLength),
+				'@duration': secondsToIsoPt(duration),
 				AdaptationSet: [
 					{
 						'@segmentAlignment': 'true',
 						SegmentTemplate: {
 							'@timescale': '1',
-							'@duration': segmentLength,
+							'@duration': session.segmentLengthSeconds,
 							'@initialization': `${sessionId}/$RepresentationID$/init.m4s`,
 							'@media': `${sessionId}/$RepresentationID$/$Number$.m4s`,
-							'@startNumber': '1',
+							'@startNumber': session.offset ? (Math.round(session.offset/session.segmentLengthSeconds)+1).toString() : '1',
 						},
 						Representation: {
 							'@id': '0',
@@ -42,10 +53,10 @@ export function generateManifest(sessionId: string, metadata: Ffmpeg.FfprobeData
 						'@segmentAlignment': 'true',
 						SegmentTemplate: {
 							'@timescale': '1',
-							'@duration': segmentLength,
+							'@duration': session.segmentLengthSeconds,
 							'@initialization': `${sessionId}/$RepresentationID$/init.m4s`,
 							'@media': `${sessionId}/$RepresentationID$/$Number$.m4s`,
-							'@startNumber': '1',
+							'@startNumber': session.offset ? (Math.round(session.offset/session.segmentLengthSeconds)+1).toString() : '1',
 						},
 						Representation: {
 							'@id': '1',
@@ -67,10 +78,10 @@ export function generateManifest(sessionId: string, metadata: Ffmpeg.FfprobeData
 	return toXML(obj);
 }
 
-export function dashOutputOptions(sessionId, segmentIndex, segmentLength) {
+export function dashOutputOptions(session: InstanceType<typeof TranscodeSession>) {
 	return [
 		'-f dash',
-		`-seg_duration ${segmentLength}`,
+		`-seg_duration ${session.segmentLengthSeconds}`,
 		'-dash_segment_type mp4',
 		'-init_seg_name init-$RepresentationID$.m4s',
 		'-media_seg_name $RepresentationID$-$Number%01d$.m4s',
@@ -81,9 +92,9 @@ export function dashOutputOptions(sessionId, segmentIndex, segmentLength) {
 		// '-write_prft 0',
 		// '-flush_packets 1',
 
-		segmentIndex !== 0 ? `-skip_to_segment ${segmentIndex}` : '-skip_to_segment 1',
+		`-skip_to_segment ${session.startIndex}`,
 		// '-time_delta 0.0625',
-		`-manifest_name http://localhost:32402/transcoder/status/${sessionId}/manifest_mpd`,
+		`-manifest_name http://localhost:32402/transcoder/status/${session.id}/manifest_mpd`,
 		'-method POST',
 	];
 	// return [
