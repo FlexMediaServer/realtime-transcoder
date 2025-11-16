@@ -34,6 +34,7 @@ export class TranscodeSession {
 	audioTrackIdx: number;
 	subtitleTrackIdx: number;
 	resolution: string;
+	bitrate: number; //Bitrate in kbps
 	codec: 'h264' | 'hevc';
 	preset: Preset;
 
@@ -71,6 +72,7 @@ export class TranscodeSession {
 		type = <'hls' | 'dash' | 'http'>undefined,
 		url = <string>undefined,
 		resolution = '1920x1080',
+		bitrate = 6000,
 		preset = <Preset>'ultrafast',
 		codec = <'h264' | 'hevc'>'h264',
 		audioTrack = -1,
@@ -90,6 +92,7 @@ export class TranscodeSession {
 		this.audioTrackIdx = audioTrack;
 		this.subtitleTrackIdx = subtitleTrack;
 		this.resolution = resolution; // Default resolution if not provided
+		this.bitrate = bitrate;
 		this.codec = codec;
 		this.preset = preset;
 		this.segmentLengthSeconds = 5;
@@ -170,7 +173,7 @@ export class TranscodeSession {
 			.audioChannels(2)
 			.audioBitrate('192k')
 			.videoCodec(getEncoder(codec))
-			.withVideoBitrate('6000k')
+			.withVideoBitrate(`${this.bitrate}k`)
 			.withFPS(Math.round(fps))
 			.outputOptions(
 				[
@@ -178,8 +181,8 @@ export class TranscodeSession {
 					choosePresetOptions(preset),
 					subtitleTrackIdx ? `-map_inlineass 0:${subtitleTrackIdx}` : null,
 					'-forced-idr:0 1',
-					'-maxrate:v 6000k',
-					'-bufsize:v 3000k',
+					`-maxrate:v ${this.bitrate}k`,
+					`-bufsize:v ${this.bitrate/2}k`,
 					`-g:v ${keyFrameInterval}`,
 					`-keyint_min:v ${keyFrameInterval}`,
 					// '-force_key_frames:v expr:gte(t,n_forced*1)',

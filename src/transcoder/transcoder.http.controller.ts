@@ -21,6 +21,8 @@ export class TranscoderHTTPController {
 			session_ &&
 			(query.subtitleTrack ? query.subtitleTrack == session_.subtitleTrackIdx : true) &&
 			(query.audioTrack ? query.audioTrack == session_.audioTrackIdx : true) &&
+			(query.bitrate ? query.bitrate == session_.bitrate : true) &&
+			(query.resolution ? query.resolution == session_.resolution : true) &&
 			(query.offset ? query.offset == session_.offset : true) &&
 			(query.url ? query.url == session_.url : true)
 				? session_
@@ -33,6 +35,7 @@ export class TranscoderHTTPController {
 					codec: query.codec,
 					offset: query.offset > 0 ? query.offset : null,
 					resolution: query.resolution,
+					bitrate: query.bitrate,
 					segmentThrottleSeconds: 240,
 					preset: query.preset,
 				});

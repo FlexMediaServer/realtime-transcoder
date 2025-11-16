@@ -6,13 +6,7 @@ import { TranscodeSession } from 'src/transcoder/transcode.session';
 
 export function generateManifest(sessionId: string, session: TranscodeSession) {
 
-	let duration;
-	// if (session.startAtZeroIndex) {
-	// 	duration = Math.floor(((session.metadata.format.duration - session.offset) / session.segmentLengthSeconds)) * session.segmentLengthSeconds
-	// } else {
-		duration = Math.floor(session.metadata.format.duration / session.segmentLengthSeconds) * session.segmentLengthSeconds;
-	// }
-
+	let duration = Math.floor((session.metadata.format.duration / session.segmentLengthSeconds) - session.offset ? session.offset : 0) * session.segmentLengthSeconds;;
 
 	const obj = {
 		MPD: {
@@ -27,7 +21,7 @@ export function generateManifest(sessionId: string, session: TranscodeSession) {
 			// '@maxSegmentDuration': 'PT10S',
 			// '@minBufferTime': 'PT10S',
 			Period: {
-				'@start': secondsToIsoPt(session.offset),
+				// '@start': secondsToIsoPt(session.offset),
 				'@id': '0',
 				'@duration': secondsToIsoPt(duration),
 				AdaptationSet: [

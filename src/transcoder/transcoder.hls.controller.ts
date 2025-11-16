@@ -22,6 +22,8 @@ export class TranscoderHLSController {
 			session_ &&
 			(query.subtitleTrack ? query.subtitleTrack == session_.subtitleTrackIdx : true) &&
 			(query.audioTrack ? query.audioTrack == session_.audioTrackIdx : true) &&
+			(query.bitrate ? query.bitrate == session_.bitrate : true) &&
+			(query.resolution ? query.resolution == session_.resolution : true) &&
 			(query.offset ? query.offset == session_.offset : true) &&
 			(query.url ? query.url == session_.url : true)
 				? session_
@@ -35,6 +37,7 @@ export class TranscoderHLSController {
 						offset: query.offset > 0 ? query.offset : null,
 						// startAtZeroIndex: query.startAtZeroIndex,
 						resolution: query.resolution,
+						bitrate: query.bitrate,
 						preset: query.preset,
 					});
 

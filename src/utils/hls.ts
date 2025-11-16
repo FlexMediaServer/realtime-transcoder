@@ -6,14 +6,8 @@ import { TranscodeSession } from 'src/transcoder/transcode.session';
 
 export function generatePlaylist(session: TranscodeSession, segmentLength = 1) {
 
-	let segmentCount = 0;
-
-	// if (session.startAtZeroIndex) {
-	// 	segmentCount = Math.floor(((session.metadata.format.duration - session.offset) / segmentLength))
-	// } else {
-		segmentCount = Math.floor((session.metadata.format.duration / segmentLength));
-	// }
-
+	let segmentCount = Math.ceil((session.metadata.format.duration / segmentLength));
+	
 	const playlist = new MediaPlaylist({
 		targetDuration: segmentLength,
 		playlistType: 'VOD',

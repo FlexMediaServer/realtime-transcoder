@@ -19,6 +19,8 @@ export class TranscoderDASHController {
 		const newSession = session &&
 		(query.subtitleTrack ? query.subtitleTrack == session.subtitleTrackIdx : true) &&
 		(query.audioTrack ? query.audioTrack == session.audioTrackIdx : true) &&
+		(query.bitrate ? query.bitrate == session.bitrate : true) &&
+		(query.resolution ? query.resolution == session.resolution : true) &&
 		(query.offset ? query.offset == session.offset : true) &&
 		(query.url ? query.url == session.url : true)
 			? session
@@ -32,6 +34,7 @@ export class TranscoderDASHController {
 					offset: query.offset > 0 ? query.offset : null,
 					// startAtZeroIndex: query.startAtZeroIndex,
 					resolution: query.resolution,
+					bitrate: query.bitrate,
 					preset: query.preset,
 				});
 

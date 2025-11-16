@@ -31,6 +31,7 @@ export class TranscoderController {
 						<th>Subtitle Track</th>
 						<th>Codec</th>
 						<th>Resolution</th>
+						<th>Bitrate</th>
 						<th>Paused</th>
 						<th>Offset</th>
 						<th>Actions</th>
@@ -52,6 +53,7 @@ export class TranscoderController {
 							<td>${session.subtitleTrackIdx}</td>
 							<td>${session.codec}</td>
 							<td>${session.resolution}</td>
+							<td>${session.bitrate}k</td>
 							<td>${session.paused}</td>
 							<td>${session.offset}</td>
 							<td><button onclick="dropSession('${session.id}')">Drop Session</button></td>
