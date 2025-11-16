@@ -63,7 +63,7 @@ export class TranscodeSession {
 
 	segmentThrottleSeconds = 240;
 
-	ffmpeg: any = null;
+	ffmpeg: Ffmpeg.FfmpegCommand = null;
 
 	eventBus = new Emitter();
 
@@ -94,7 +94,7 @@ export class TranscodeSession {
 		this.preset = preset;
 		this.segmentLengthSeconds = 5;
 		this.segmentThrottleSeconds = segmentThrottleSeconds;
-		this.startIndex = startIndex;
+		this.startIndex = type === 'dash' && startIndex == 0 ? 1 : startIndex; //DASH always starts at 1, while HLS starts at 0.
 		
 		this.folderPath = `${transcodeFolder}/${sessionId}`;
 	}
@@ -106,17 +106,13 @@ export class TranscodeSession {
 	*/
 	async start () {
 		//If ffmpeg already exists, stop it and reset.
-		if (this.ffmpeg) await this.stop();
+		await this.stop();
 
 		//Fetch source metadata if not already populated
 		if (!this.metadata) this.metadata = await this.getVideoMetadata(this.url);
 
 		//Find video stream
 		const videoStream = this.metadata.streams.find((stream) => stream.codec_type == 'video');
-
-		//Make sure folder is empty
-		if (fs.existsSync(`${this.folderPath}`))
-			fs.rmSync(`${this.folderPath}`, { recursive: true, force: true });
 
 		//Create folder
 		if (!fs.existsSync(`${this.folderPath}`)) fs.mkdirSync(`${this.folderPath}`, { recursive: true });
@@ -267,7 +263,7 @@ export class TranscodeSession {
 				console.error(e);
 			})
 			.on('stderr', function (stderrLine) {
-				console.debug(stderrLine)
+				// console.debug(stderrLine)
 				// fs.appendFileSync(`logs/${id}`, stderrLine + '\n');
 			})
 			.on('end', () => {
@@ -288,39 +284,40 @@ export class TranscodeSession {
 	}
 
 	async pause () {
-		this.ffmpeg.kill('SIGSTOP');
+		this.ffmpeg?.kill('SIGSTOP');
 		this.paused = true;
 		console.debug(`[${this.id}] Session paused`);
 	}
 
 	async resume () {
-		this.ffmpeg.kill('SIGCONT');
+		this.ffmpeg?.kill('SIGCONT');
 		this.paused = false;
 		console.debug(`[${this.id}] Session resumed`);
 	}
 
 	async stop () {
 		console.debug(`[${this.id}] Stopping session`);
-		this.ffmpeg?.kill();
+		this.segments = {};
+
+		this.ffmpeg?.kill('SIGKILL')
+
 		if (fs.existsSync(`${this.folderPath}`))
 			fs.rmSync(`${this.folderPath}`, { recursive: true, force: true });
-
-		this.segments = {};
 
 		console.debug(`[${this.id}] Stopped session`);
 	}
 
 
 	segmentComplete (streamIndex: number, segmentIndex: number) {
-		let segments = this.segments[`${streamIndex}`];
-		if (!segments) segments = this.segments[`${streamIndex}`] = [] as any;
+		let segments = this.segments[streamIndex];
+		if (!segments) segments = this.segments[streamIndex] = [] as any;
 
+		console.debug(`[${this.id}] Segment complete (Stream: ${streamIndex} Segment: ${segmentIndex})`);
 		this.eventBus.emit(`segmentComplete-${streamIndex}-${segmentIndex}`);
 		segments.push({
 			index: segmentIndex,
 			read: false,
 		});
-		console.debug(`[${this.id}] Segment complete (Stream: ${streamIndex} Segment: ${segmentIndex})`);
 	}
 
 	markSegmentAsRead(streamIndex: number = 0, segmentIndex: number) {
@@ -358,17 +355,17 @@ export class TranscodeSession {
 			this.lastRequestedSegment[streamIndex] = segmentIndex;
 
 			await this.waitForSegment(streamIndex, segmentIndex);
-			this.markSegmentAsRead(streamIndex, segmentIndex);
+			// this.markSegmentAsRead(streamIndex, segmentIndex);
 			await pipeWait(fs.createReadStream(segmentPath), outputStream);
 		} else if (streamIndex == 0) {
 			this.lastRequestedSegment[streamIndex] = segmentIndex;
 			await this.seek(segmentIndex);
 			await this.waitForSegment(streamIndex, segmentIndex);
-			this.markSegmentAsRead(streamIndex, segmentIndex);
+			// this.markSegmentAsRead(streamIndex, segmentIndex);
 			await pipeWait(fs.createReadStream(segmentPath), outputStream);
 		} else {
 			await this.waitForSegment(streamIndex, segmentIndex);
-			this.markSegmentAsRead(streamIndex, segmentIndex);
+			// this.markSegmentAsRead(streamIndex, segmentIndex);
 			await pipeWait(fs.createReadStream(segmentPath), outputStream);
 		}
 
@@ -379,12 +376,19 @@ export class TranscodeSession {
 
 	waitForSegment(streamIndex, segmentIndex = 0) {
 		return new Promise<void>((resolve, reject) => {
-			if (this.segments[`${streamIndex}`]?.find((stream) => stream.index == segmentIndex)) return resolve();
-			this.eventBus.once(`segmentComplete-${streamIndex}-${segmentIndex}`, () => resolve());
+			if (this.segments[streamIndex]?.find((segment) => segment.index === segmentIndex) !== undefined) {
+				// console.debug(`Message: Segment found`, this.segments[streamIndex]?.find((segment) => segment.index === segmentIndex))
+				return resolve();
+			}
+			this.eventBus.once(`segmentComplete-${streamIndex}-${segmentIndex}`, () => {
+				// console.debug(`Message: segmentComplete-${streamIndex}-${segmentIndex} - Event Bus`)
+				resolve()
+			});
 		});
 	}
 
 	getVideoMetadata(url): Promise<Ffmpeg.FfprobeData> {
+		console.log(`[${this.id}] Getting metadata`)
 		return new Promise<Ffmpeg.FfprobeData>((resolve, reject) => {
 			Ffmpeg.ffprobe(url, function (err, metadata) {
 				if (err) return reject(err);

@@ -16,35 +16,43 @@ export class TranscoderHTTPController {
 	@Get('/start')
 	async startHTTP(@Param() params, @Query() query: StartTranscodeDto, @Res() res, @Headers() headers) {
 		console.log(headers['range'], query['offset']);
-		let session = await this.transcoderService.startSession({
-			type: 'http',
-			url: query.url,
-			audioTrack: query.audioTrack,
-			subtitleTrack: query.subtitleTrack,
-			sessionId: query.session,
-			codec: query.codec,
-			offset: query.offset > 0 ? query.offset : null,
-			resolution: query.resolution,
-			segmentThrottleSeconds: 240,
-			preset: query.preset,
-		});
+		const session_ = this.transcoderService.getSession(query.session);
+		const session =
+			session_ &&
+			(query.subtitleTrack ? query.subtitleTrack == session_.subtitleTrackIdx : true) &&
+			(query.audioTrack ? query.audioTrack == session_.audioTrackIdx : true) &&
+			(query.offset ? query.offset == session_.offset : true) &&
+			(query.url ? query.url == session_.url : true)
+				? session_
+				: await this.transcoderService.startSession({
+					type: 'http',
+					url: query.url,
+					audioTrack: query.audioTrack,
+					subtitleTrack: query.subtitleTrack,
+					sessionId: query.session,
+					codec: query.codec,
+					offset: query.offset > 0 ? query.offset : null,
+					resolution: query.resolution,
+					segmentThrottleSeconds: 240,
+					preset: query.preset,
+				});
 
 		console.log('Session: ', session.id);
 		await session.waitForSegment(0, 1);
 		console.log('Sending header');
 		await pipeWait(fs.createReadStream(`${session.folderPath}/header`), res);
 
-		let segment = session.currentPositionIndex + 1;
+		let segment = session.startIndex;
 		let loopSegments = true;
+
+		res.on('close', () => {
+			session.stop()
+			loopSegments = false;
+		});
 
 		while (loopSegments) {
 			await session.getSegment(0, segment, res);
 			segment++;
 		}
-
-		res.on('close', () => {
-			console.log('SOCKET CLOSED')
-			loopSegments = false;
-		});
 	}
 }

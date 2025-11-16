@@ -185,7 +185,7 @@ export class TranscoderController {
 			if (rows.length <= 0) return;
 			for (let row of rows) {
 				const segment = row.split(',')[0].split('.')[0];
-				session.segmentComplete(0, Math.round(parseInt(segment)));
+				session.segmentComplete(0, parseInt(segment));
 			}
 		});
 	}

@@ -38,7 +38,7 @@ export function generateManifest(sessionId: string, session: TranscodeSession) {
 							'@duration': session.segmentLengthSeconds,
 							'@initialization': `${sessionId}/$RepresentationID$/init.m4s`,
 							'@media': `${sessionId}/$RepresentationID$/$Number$.m4s`,
-							'@startNumber': session.offset ? (Math.round(session.offset/session.segmentLengthSeconds)+1).toString() : '1',
+							'@startNumber': session.startIndex ? (session.startIndex).toString() : '1',
 						},
 						Representation: {
 							'@id': '0',
@@ -56,7 +56,7 @@ export function generateManifest(sessionId: string, session: TranscodeSession) {
 							'@duration': session.segmentLengthSeconds,
 							'@initialization': `${sessionId}/$RepresentationID$/init.m4s`,
 							'@media': `${sessionId}/$RepresentationID$/$Number$.m4s`,
-							'@startNumber': session.offset ? (Math.round(session.offset/session.segmentLengthSeconds)+1).toString() : '1',
+							'@startNumber': session.startIndex ? (session.startIndex).toString() : '1',
 						},
 						Representation: {
 							'@id': '1',
@@ -92,7 +92,8 @@ export function dashOutputOptions(session: InstanceType<typeof TranscodeSession>
 		// '-write_prft 0',
 		// '-flush_packets 1',
 
-		`-skip_to_segment ${session.startIndex}`,
+		//Prevents unnecessary addition of -skip-to-segment. (Note DASH segments start at 1)
+		session.startIndex > 1 ? `-skip_to_segment ${session.startIndex}` : undefined,
 		// '-time_delta 0.0625',
 		`-manifest_name http://localhost:32402/transcoder/status/${session.id}/manifest_mpd`,
 		'-method POST',

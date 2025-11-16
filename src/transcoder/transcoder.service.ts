@@ -23,6 +23,7 @@ export class TranscoderService {
 			async () => {
 				for (const session of Object.values(this.sessions)) {
 					const inactiveFor = Date.now() - session.lastActivityTs;
+					//If inactive for more than 30 minutes, terminate session.
 					if (inactiveFor > 30 * 60 * 1000) {
 						await session.stop()
 						delete this.sessions[session.id];
