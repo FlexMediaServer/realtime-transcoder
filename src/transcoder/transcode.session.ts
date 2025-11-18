@@ -112,7 +112,7 @@ export class TranscodeSession {
 		await this.stop();
 
 		//Fetch source metadata if not already populated
-		if (!this.metadata) this.metadata = await this.getVideoMetadata(this.url);
+		if (!this.metadata) this.metadata = await this.getFileMetadata();
 
 		//Find video stream
 		const videoStream = this.metadata.streams.find((stream) => stream.codec_type == 'video');
@@ -390,13 +390,18 @@ export class TranscodeSession {
 		});
 	}
 
-	getVideoMetadata(url): Promise<Ffmpeg.FfprobeData> {
+	async getFileMetadata(): Promise<Ffmpeg.FfprobeData> {
+		if (this.metadata) return this.metadata;
+
 		console.log(`[${this.id}] Getting metadata`)
-		return new Promise<Ffmpeg.FfprobeData>((resolve, reject) => {
-			Ffmpeg.ffprobe(url, function (err, metadata) {
+
+		this.metadata = await new Promise<Ffmpeg.FfprobeData>(((resolve, reject) => {
+			Ffmpeg.ffprobe(this.url, function (err, metadata) {
 				if (err) return reject(err);
 				resolve(metadata);
 			});
-		});
+		}).bind(this));
+
+		return this.metadata;
 	}
 }

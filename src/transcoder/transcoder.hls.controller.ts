@@ -45,8 +45,10 @@ export class TranscoderHLSController {
 	}
 
 	@Get('/:session/base/index.m3u8')
-	index(@Param() param) {
+	async index(@Param() param) {
 		const session = this.transcoderService.getSession(param.session);
+
+		await session.getFileMetadata();
 
 		return generatePlaylist(session, session.segmentLengthSeconds);
 	}
