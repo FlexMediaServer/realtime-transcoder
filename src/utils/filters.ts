@@ -1,4 +1,4 @@
-import { FilterSpecification } from 'fluent-ffmpeg';
+import Ffmpeg, { FilterSpecification } from 'fluent-ffmpeg';
 import { vaapiPresetOptions } from './hwaccel/vaapi';
 import { Preset } from 'src/transcoder/transcoder.dto';
 import { cudaPresetOptions } from './hwaccel/cuda';
@@ -42,6 +42,16 @@ export function isHardware() {
 
 	return type === 'vaapi' || type === 'nvenc';
 }
+
+
+export function isHDR(metadata: Ffmpeg.FfprobeData) {
+	return metadata.streams?.[0]?.color_primaries == 'bt2020';
+}
+
+export function isImageSubtitleFormat(stream: Ffmpeg.FfprobeStream) {
+	return ['dvd_subtitle', 'hdmv_pgs_subtitle', 'dvb_subtitle', 'xsub', 'dvb_teletext'].includes(stream.codec_name)
+}
+
 
 export function choosePresetOptions(preset: Preset) {
 	const type = process.env.TRANSCODE_TYPE || 'software';

@@ -2,13 +2,13 @@ import Ffmpeg from "fluent-ffmpeg";
 import { Preset } from "./transcoder.dto";
 import randomstring from 'randomstring';
 import fs from 'fs';
-import { buildScaleFilter, buildSubtitleFilterInlineass, choosePresetOptions, getEncoder, isHardware } from "src/utils/filters";
+import { buildScaleFilter, buildSubtitleFilterInlineass, choosePresetOptions, getEncoder, isHardware, isHDR, isImageSubtitleFormat } from "src/utils/filters";
 import { dashOutputOptions } from "src/utils/dash";
 import { hlsOutputOptions } from "src/utils/hls";
 import { httpOutputOptions } from "src/utils/http";
 import { getRealDuration } from "src/utils/time";
 import path from "path";
-import { pipeWait } from "src/utils/general";
+import { getStream, pipeWait } from "src/utils/general";
 
 class Emitter extends require('events') {
 	emit(type, ...args) {
@@ -157,7 +157,7 @@ export class TranscodeSession {
 			.complexFilter([
 				{
 					inputs: '0:v:0',
-					filter: `${isHardware() ? 'format=nv12,hwupload,' : ''}${buildScaleFilter(resolution)}${isHardware() ? ',hwdownload,format=nv12' : ''}${ this.metadata.streams?.[0]?.color_primaries == 'bt2020' ? ',tonemap=hable,zscale=transfer=bt709:primaries=bt709:matrix=bt709:range=tv,format=yuv420p' : ''}${subtitleTrackIdx ? '[subs];[subs]' + buildSubtitleFilterInlineass() : ''}`,
+					filter: `${isHardware() ? 'format=nv12,hwupload,' : ''}${buildScaleFilter(resolution)}${isHardware() ? ',hwdownload,format=nv12' : ''}${ isHDR(this.metadata) ? ',tonemap=hable,zscale=transfer=bt709:primaries=bt709:matrix=bt709:range=tv,format=yuv420p' : ''}${subtitleTrackIdx ? '[subs];[subs]' : ''}${subtitleTrackIdx && isImageSubtitleFormat(getStream(this.metadata, subtitleTrackIdx)) ? `[0:${subtitleTrackIdx}]overlay` : subtitleTrackIdx ? buildSubtitleFilterInlineass() : ''}`,
 					outputs: 'video',
 				},
 				{
@@ -200,7 +200,7 @@ export class TranscodeSession {
 				].filter((arg) => arg),
 			);
 
-		if (subtitleTrackIdx)
+		if (subtitleTrackIdx && !isImageSubtitleFormat(getStream(this.metadata, subtitleTrackIdx)))
 			this.ffmpeg
 				.output('nullfile')
 				.outputOptions(
