@@ -157,7 +157,7 @@ export class TranscodeSession {
 			.complexFilter([
 				{
 					inputs: '0:v:0',
-					filter: `${isHardware() ? 'format=nv12,hwupload,' : ''}${buildScaleFilter(resolution)}${isHardware() ? ',hwdownload,format=nv12' : ''},tonemap=hable,zscale=matrix=bt709${subtitleTrackIdx ? '[subs];[subs]' + buildSubtitleFilterInlineass() : ''}`,
+					filter: `${isHardware() ? 'format=nv12,hwupload,' : ''}${buildScaleFilter(resolution)}${isHardware() ? ',hwdownload,format=nv12' : ''}${ this.metadata.streams?.[0]?.color_primaries == 'bt2020' ? ',tonemap=hable,zscale=transfer=bt709:primaries=bt709:matrix=bt709:range=tv,format=yuv420p' : ''}${subtitleTrackIdx ? '[subs];[subs]' + buildSubtitleFilterInlineass() : ''}`,
 					outputs: 'video',
 				},
 				{
@@ -266,7 +266,7 @@ export class TranscodeSession {
 				console.error(e);
 			})
 			.on('stderr', function (stderrLine) {
-				// console.debug(stderrLine)
+				console.debug(stderrLine)
 				// fs.appendFileSync(`logs/${id}`, stderrLine + '\n');
 			})
 			.on('end', () => {
