@@ -45,6 +45,7 @@ export class TranscoderHLSController {
 	}
 
 	@Get('/:session/base/index.m3u8')
+	@Header('content-type', 'application/vnd.apple.mpegurl')
 	async index(@Param() param) {
 		const session = this.transcoderService.getSession(param.session);
 
@@ -59,6 +60,8 @@ export class TranscoderHLSController {
 		// await waitForFile(`/tmp/transcode/${params.session}/${params.segment}.ts`);
 		const session = this.transcoderService.getSession(params.session);
 		if (!session) throw new NotFoundException();
+
+		res.setHeader('content-type', 'video/mp2t');
 
 		await session.getSegment(0, parseInt(params.segment), res);
 		res.end();

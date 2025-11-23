@@ -13,6 +13,7 @@ export function generatePlaylist(session: TranscodeSession, segmentLength = 1) {
 		playlistType: 'VOD',
 		mediaSequenceBase: 0,
 		endlist: true,
+		version: 6,
 		start: session.offset > 0 /* && !session.startAtZeroIndex */ ? { offset: session.offset, precise: false } : undefined,
 		segments: Array.from({ length: segmentCount }, (_, i) => i)
 			.map(
@@ -30,9 +31,38 @@ export function generatePlaylist(session: TranscodeSession, segmentLength = 1) {
 }
 
 export function generateMasterPlaylist(session: TranscodeSession) {
-	return `#EXTM3U
-#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=8135000,RESOLUTION=1920x1080,FRAME-RATE=23.976000
-${session.id}/base/index.m3u8`;
+	const masterPlaylist = new MasterPlaylist({
+		version: 6,
+		variants: [
+			{
+				uri: `${session.id}/base/index.m3u8`,
+				bandwidth: 8135000,
+				resolution: {
+					width: 1920,
+					height: 1080
+				},
+				frameRate: 24,
+				codecs: 'avc1.4D401F,mp4a.40.2',
+				score: 0,
+				// allowedCpc: [],
+				videoRange: 'SDR',
+				stableVariantId: '',
+				programId: undefined,
+				audio: [],
+				video: [],
+				subtitles: [],
+				closedCaptions: [],
+				currentRenditions: {
+					audio: 0,
+					video: 0,
+					subtitles: 0,
+					closedCaptions: 0
+				}
+			} as any
+		]
+	})
+
+	return stringify(masterPlaylist) + '\n'
 }
 
 export function hlsOutputOptions(session: InstanceType<typeof TranscodeSession>) {

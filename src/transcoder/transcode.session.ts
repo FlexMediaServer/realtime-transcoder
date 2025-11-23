@@ -157,7 +157,7 @@ export class TranscodeSession {
 			.complexFilter([
 				{
 					inputs: '0:v:0',
-					filter: `${isHardware() ? 'format=nv12,hwupload,' : ''}${buildScaleFilter(resolution)}${isHardware() ? ',hwdownload,format=nv12' : ''}${subtitleTrackIdx ? '[subs];[subs]' + buildSubtitleFilterInlineass() : ''}`,
+					filter: `${isHardware() ? 'format=nv12,hwupload,' : ''}${buildScaleFilter(resolution)}${isHardware() ? ',hwdownload,format=nv12' : ''},tonemap=hable,zscale=matrix=bt709${subtitleTrackIdx ? '[subs];[subs]' + buildSubtitleFilterInlineass() : ''}`,
 					outputs: 'video',
 				},
 				{
