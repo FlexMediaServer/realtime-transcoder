@@ -2,7 +2,7 @@ import Ffmpeg from "fluent-ffmpeg";
 import { Preset } from "./transcoder.dto";
 import randomstring from 'randomstring';
 import fs from 'fs';
-import { buildScaleFilter, buildSubtitleFilterInlineass, choosePresetOptions, getEncoder, isHardware, isHDR, isImageSubtitleFormat } from "src/utils/filters";
+import { buildComplexFilters, choosePresetOptions, getEncoder, isImageSubtitleFormat } from "src/utils/filters";
 import { dashOutputOptions } from "src/utils/dash";
 import { hlsOutputOptions } from "src/utils/hls";
 import { httpOutputOptions } from "src/utils/http";
@@ -154,18 +154,7 @@ export class TranscodeSession {
 				].filter((arg) => arg),
 			)
 			.output(type == 'dash' ? `manifest.mpd` : type == 'hls' ? `%d.ts` : '%d.mkv')
-			.complexFilter([
-				{
-					inputs: '0:v:0',
-					filter: `${isHardware() ? 'format=nv12,hwupload,' : ''}${buildScaleFilter(resolution)}${isHardware() ? ',hwdownload,format=nv12' : ''}${ isHDR(this.metadata) ? ',tonemap=hable,zscale=transfer=bt709:primaries=bt709:matrix=bt709:range=tv,format=yuv420p' : ''}${subtitleTrackIdx ? '[subs];[subs]' : ''}${subtitleTrackIdx && isImageSubtitleFormat(getStream(this.metadata, subtitleTrackIdx)) ? `[0:${subtitleTrackIdx}]overlay` : subtitleTrackIdx ? buildSubtitleFilterInlineass() : ''}`,
-					outputs: 'video',
-				},
-				{
-					inputs: audioTrackIdx > -1 ? `0:${audioTrackIdx}` : '0:a:0',
-					filter: `aresample=async=1:ochl='stereo':rematrix_maxval=0.000000dB:osr=48000${this.offset == 0 ? ':first_pts=0' : ''}`,
-					outputs: 'audio',
-				},
-			])
+			.complexFilter(buildComplexFilters(this))
 			.map('video')
 			.map('audio')
 			// .audioCodec('libopus')
