@@ -2,13 +2,13 @@ import Ffmpeg from "fluent-ffmpeg";
 import { Preset } from "./transcoder.dto";
 import randomstring from 'randomstring';
 import fs from 'fs';
-import { buildScaleFilter, buildSubtitleFilterInlineass, choosePresetOptions, getEncoder, isHardware } from "src/utils/filters";
+import { buildComplexFilters, choosePresetOptions, getEncoder, isImageSubtitleFormat } from "src/utils/filters";
 import { dashOutputOptions } from "src/utils/dash";
 import { hlsOutputOptions } from "src/utils/hls";
 import { httpOutputOptions } from "src/utils/http";
 import { getRealDuration } from "src/utils/time";
 import path from "path";
-import { pipeWait } from "src/utils/general";
+import { getStream, pipeWait } from "src/utils/general";
 
 class Emitter extends require('events') {
 	emit(type, ...args) {
@@ -112,7 +112,7 @@ export class TranscodeSession {
 		await this.stop();
 
 		//Fetch source metadata if not already populated
-		if (!this.metadata) this.metadata = await this.getVideoMetadata(this.url);
+		if (!this.metadata) this.metadata = await this.getFileMetadata();
 
 		console.debug('Getting video metadata...', this.metadata.format)
 
@@ -155,18 +155,7 @@ export class TranscodeSession {
 				].filter((arg) => arg),
 			)
 			.output(type == 'dash' ? `manifest.mpd` : type == 'hls' ? `%d.ts` : '%d.mkv')
-			.complexFilter([
-				{
-					inputs: '0:v:0',
-					filter: `${isHardware() ? 'format=nv12,hwupload,' : ''}${buildScaleFilter(resolution)}${isHardware() ? ',hwdownload,format=nv12' : ''}${subtitleTrackIdx ? '[subs];[subs]' + buildSubtitleFilterInlineass() : ''}`,
-					outputs: 'video',
-				},
-				{
-					inputs: audioTrackIdx > -1 ? `0:${audioTrackIdx}` : '0:a:0',
-					filter: `aresample=async=1:ochl='stereo':rematrix_maxval=0.000000dB:osr=48000${this.offset == 0 ? ':first_pts=0' : ''}`,
-					outputs: 'audio',
-				},
-			])
+			.complexFilter(buildComplexFilters(this))
 			.map('video')
 			.map('audio')
 			// .audioCodec('libopus')
@@ -201,7 +190,7 @@ export class TranscodeSession {
 				].filter((arg) => arg),
 			);
 
-		if (subtitleTrackIdx)
+		if (subtitleTrackIdx && !isImageSubtitleFormat(getStream(this.metadata, subtitleTrackIdx)))
 			this.ffmpeg
 				.output('nullfile')
 				.outputOptions(
@@ -267,7 +256,7 @@ export class TranscodeSession {
 				console.error(e);
 			})
 			.on('stderr', function (stderrLine) {
-				// console.debug(stderrLine)
+				console.debug(stderrLine)
 				// fs.appendFileSync(`logs/${id}`, stderrLine + '\n');
 			})
 			.on('end', () => {
@@ -402,13 +391,18 @@ export class TranscodeSession {
 		});
 	}
 
-	getVideoMetadata(url): Promise<Ffmpeg.FfprobeData> {
+	async getFileMetadata(): Promise<Ffmpeg.FfprobeData> {
+		if (this.metadata) return this.metadata;
+
 		console.log(`[${this.id}] Getting metadata`)
-		return new Promise<Ffmpeg.FfprobeData>((resolve, reject) => {
-			Ffmpeg.ffprobe(url, function (err, metadata) {
+
+		this.metadata = await new Promise<Ffmpeg.FfprobeData>(((resolve, reject) => {
+			Ffmpeg.ffprobe(this.url, function (err, metadata) {
 				if (err) return reject(err);
 				resolve(metadata);
 			});
-		});
+		}).bind(this));
+
+		return this.metadata;
 	}
 }

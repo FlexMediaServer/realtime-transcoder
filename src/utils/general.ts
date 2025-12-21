@@ -1,3 +1,4 @@
+import Ffmpeg, { FfprobeStream } from 'fluent-ffmpeg';
 import fs from 'fs';
 
 export function pipeWait(stream, destination) {
@@ -27,6 +28,11 @@ export function pipeWait(stream, destination) {
         stream.on('error', onError);
         destination.on('close', onClose);
     });
+}
+
+export function getStream (metadata: Ffmpeg.FfprobeData, index) {
+	console.log(metadata.streams)
+	return metadata.streams.find((stream) => stream.index == index)
 }
 
 export function waitForFile(filePath: string, interval = 1000): Promise<void> {
