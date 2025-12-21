@@ -40,6 +40,8 @@ export class TranscoderDASHController {
 
 		// await this.transcoderService.waitForSegments('dash', sessionId, 1, 1) //Wait for first 5 segments starting at seg 1
 
+		await newSession.waitForStart();
+
 		return generateManifest(newSession.id, newSession);
 	}
 

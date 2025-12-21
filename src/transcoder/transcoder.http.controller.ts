@@ -41,6 +41,7 @@ export class TranscoderHTTPController {
 				});
 
 		console.log('Session: ', session.id);
+		await session.waitForStart();
 		await session.waitForSegment(0, 1);
 		console.log('Sending header');
 		await pipeWait(fs.createReadStream(`${session.folderPath}/header`), res);

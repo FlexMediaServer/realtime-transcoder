@@ -41,6 +41,8 @@ export class TranscoderHLSController {
 						preset: query.preset,
 					});
 
+		await session.waitForStart();
+
 		return generateMasterPlaylist(session);
 	}
 

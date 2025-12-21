@@ -6,7 +6,7 @@ import { TranscodeSession } from 'src/transcoder/transcode.session';
 
 export function generateManifest(sessionId: string, session: TranscodeSession) {
 
-	let duration = Math.floor((session.metadata.format.duration / session.segmentLengthSeconds) - session.offset ? session.offset : 0) * session.segmentLengthSeconds;;
+	let duration = Math.floor((session.metadata.format.duration / session.segmentLengthSeconds) - (session.offset ? session.offset : 0)) * session.segmentLengthSeconds;
 
 	const obj = {
 		MPD: {

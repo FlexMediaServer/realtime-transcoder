@@ -114,6 +114,8 @@ export class TranscodeSession {
 		//Fetch source metadata if not already populated
 		if (!this.metadata) this.metadata = await this.getVideoMetadata(this.url);
 
+		console.debug('Getting video metadata...', this.metadata.format)
+
 		//Find video stream
 		const videoStream = this.metadata.streams.find((stream) => stream.codec_type == 'video');
 
@@ -130,7 +132,6 @@ export class TranscodeSession {
 		this.lastActivityTs = Date.now();
 
 		console.debug(`[${this.id}] Starting at offset: ${this.offset}`);
-
 
 		let throttleTimeout = false;
 
@@ -170,7 +171,7 @@ export class TranscodeSession {
 			.map('audio')
 			// .audioCodec('libopus')
 			.audioCodec('libfdk_aac')
-			.audioChannels(2)
+			// .audioChannels(this.metadata.streams.find((stream) => stream.index === this.audioTrackIdx).channels)
 			.audioBitrate('192k')
 			.videoCodec(getEncoder(codec))
 			.withVideoBitrate(`${this.bitrate}k`)
@@ -274,6 +275,17 @@ export class TranscodeSession {
 			})
 			// .output(type == 'dash' ? `manifest` : type == 'hls' ? `%d.ts` : '%d.mkv')
 			.run();
+
+			this.eventBus.emit('ready');
+	}
+
+	async waitForStart () {
+		if (this.ffmpeg || this.metadata) return;
+		return new Promise<void>((resolve, reject) => {
+			this.eventBus.once('ready', () => {
+				resolve()
+			});
+		})
 	}
 	
 	async seek(segmentIndex) {
