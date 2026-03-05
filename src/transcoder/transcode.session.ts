@@ -9,6 +9,7 @@ import { httpOutputOptions } from "src/utils/http";
 import { getRealDuration } from "src/utils/time";
 import path from "path";
 import { getStream, pipeWait } from "src/utils/general";
+import { TranscoderService } from "./transcoder.service";
 
 class Emitter extends require('events') {
 	emit(type, ...args) {
@@ -82,7 +83,7 @@ export class TranscodeSession {
 		startIndex = 0,
 		segmentThrottleSeconds = 240,
 		transcodeFolder = '/tmp/transcoder'
-	}) {
+	}, private transcoderService: TranscoderService) {
 		this.id = sessionId;
 		this.type = type;
 
@@ -396,12 +397,7 @@ export class TranscodeSession {
 
 		console.log(`[${this.id}] Getting metadata`)
 
-		this.metadata = await new Promise<Ffmpeg.FfprobeData>(((resolve, reject) => {
-			Ffmpeg.ffprobe(this.url, function (err, metadata) {
-				if (err) return reject(err);
-				resolve(metadata);
-			});
-		}).bind(this));
+		this.metadata = await this.transcoderService.getMetadata(this.url);
 
 		return this.metadata;
 	}

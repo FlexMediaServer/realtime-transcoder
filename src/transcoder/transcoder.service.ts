@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 import { Injectable, Options } from '@nestjs/common';
 import { TranscodeSession } from './transcode.session';
+import Keyv from 'keyv';
+import Ffmpeg from 'fluent-ffmpeg';
 
 export const segmentThrottleSeconds = 240;
 
@@ -17,6 +19,8 @@ export class TranscoderService {
 	transcodeFolder = process.env.TRANSCODE_FOLDER || '/tmp';
 
 	eventBus = new Emitter();
+
+	metadataCache = new Keyv<Ffmpeg.FfprobeData>();
 
 	constructor() {
 		setInterval(
@@ -43,7 +47,7 @@ export class TranscoderService {
 	}
 		*/
 	async startSession(options: ConstructorParameters<typeof TranscodeSession>[0]): Promise<InstanceType<typeof TranscodeSession>> {
-		const session = new TranscodeSession(options);
+		const session = new TranscodeSession(options, this);
 		this.sessions[session.id] = session;
 
 		await session.start()
@@ -53,5 +57,23 @@ export class TranscoderService {
 
 	getSession(sessionId) {
 		return this.sessions[sessionId];
+	}
+
+	async getMetadata (url: string) {
+
+		let metadata = await this.metadataCache.get(url);
+
+		if (!metadata) {
+			metadata = await new Promise<Ffmpeg.FfprobeData>(((resolve, reject) => {
+				Ffmpeg.ffprobe(url, function (err, metadata) {
+					if (err) return reject(err);
+					resolve(metadata);
+				});
+			}).bind(this));
+
+			await this.metadataCache.set(url, metadata, 24 * 60 * 60 * 1000)
+		}
+
+		return metadata;
 	}
 }

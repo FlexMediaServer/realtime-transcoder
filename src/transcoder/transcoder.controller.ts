@@ -3,6 +3,8 @@ import { TranscoderService } from './transcoder.service';
 import { fromXML } from 'from-xml';
 import { parse } from 'csv-parse';
 import { BasicAuthGuard } from 'src/middleware/basic-auth.guard';
+import Keyv from 'keyv';
+
 @Controller()
 export class TranscoderController {
 	constructor(private readonly transcoderService: TranscoderService) {}
@@ -127,6 +129,13 @@ export class TranscoderController {
 
 	@Get('/transcoder/ping')
 	ping() {}
+
+	@Get('/transcoder/metadata')
+	async metadata(@Query() query: { url: string }) {
+		let metadata = await this.transcoderService.getMetadata(query.url);
+
+		return { metadata };
+	}
 
 	@UseGuards(BasicAuthGuard)
 	@Delete('/transcoder/:id')
