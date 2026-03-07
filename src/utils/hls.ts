@@ -84,5 +84,6 @@ export function hlsOutputOptions(session: InstanceType<typeof TranscodeSession>)
 		'-max_delay 5000000',
 		'-flags +global_header',
 		'-segment_header_filename header',
+		'-map_metadata -1',
 	];
 }

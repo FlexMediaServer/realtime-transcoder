@@ -182,7 +182,6 @@ export class TranscodeSession {
 						: type == 'hls'
 							? hlsOutputOptions(this)
 							: httpOutputOptions(this)),
-					'-map_metadata -1',
 					'-map_chapters -1',
 					'-avoid_negative_ts disabled',
 					'-start_at_zero',

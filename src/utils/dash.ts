@@ -91,6 +91,7 @@ export function dashOutputOptions(session: InstanceType<typeof TranscodeSession>
 		// '-time_delta 0.0625',
 		`-manifest_name http://localhost:32402/transcoder/status/${session.id}/manifest_mpd`,
 		'-method POST',
+		'-map_metadata -1'
 	];
 	// return [
 	// 	`-segment_start_number ${segmentIndex}`,
