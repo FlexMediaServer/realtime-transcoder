@@ -64,6 +64,8 @@ export class TranscoderService {
 		let metadata = await this.metadataCache.get(url);
 
 		if (!metadata) {
+			console.debug(`[DEBUG] Fetching metadata: ${url}`)
+
 			metadata = await new Promise<Ffmpeg.FfprobeData>(((resolve, reject) => {
 				Ffmpeg.ffprobe(url, function (err, metadata) {
 					if (err) return reject(err);

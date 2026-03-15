@@ -394,8 +394,6 @@ export class TranscodeSession {
 	async getFileMetadata(): Promise<Ffmpeg.FfprobeData> {
 		if (this.metadata) return this.metadata;
 
-		console.log(`[${this.id}] Getting metadata`)
-
 		this.metadata = await this.transcoderService.getMetadata(this.url);
 
 		return this.metadata;
