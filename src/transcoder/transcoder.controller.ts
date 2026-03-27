@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Header, NotFoundException, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, NotFoundException, Param, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { TranscoderService } from './transcoder.service';
 import { fromXML } from 'from-xml';
 import { parse } from 'csv-parse';
@@ -58,7 +58,10 @@ export class TranscoderController {
 							<td>${session.bitrate}k</td>
 							<td>${session.paused}</td>
 							<td>${session.offset}</td>
-							<td><button onclick="dropSession('${session.id}')">Drop Session</button></td>
+							<td>
+								<button onclick="restartSession('${session.id}')">Restart Session</button>
+								<button onclick="dropSession('${session.id}')">Drop Session</button>
+							</td>
 						</tr>
 						`
 					})}
@@ -123,6 +126,19 @@ export class TranscoderController {
 						.then(data => alert('Deleted:', data))
 						.catch(error => console.error(error));
 					}
+					
+					function restartSession(id) {
+						fetch('/transcoder/' + id, {
+							method: 'PUT'
+						})
+						.then(res => {
+							if(!res.ok) throw new Error('Request failed: ' + res.status);
+							location.reload();
+							return res.json();
+						})
+						.then(data => alert('Restarted:', data))
+						.catch(error => console.error(error));
+					}
 			</script>
 		`
 	}
@@ -143,6 +159,13 @@ export class TranscoderController {
 		if (this.transcoderService.getSession(id) == undefined) throw new NotFoundException();
 		await this.transcoderService.getSession(id)?.stop()
 		delete this.transcoderService.sessions[id];
+	}
+
+	@UseGuards(BasicAuthGuard)
+	@Put('/transcoder/:id')
+	async restartSession (@Param('id') id) {
+		if (this.transcoderService.getSession(id) == undefined) throw new NotFoundException();
+		await this.transcoderService.getSession(id)?.restart()
 	}
 
 	@Post('/transcoder/status/:id/manifest_mpd')

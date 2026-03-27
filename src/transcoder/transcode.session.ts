@@ -311,6 +311,11 @@ export class TranscodeSession {
 		console.debug(`[${this.id}] Stopped session`);
 	}
 
+	async restart () {
+		console.debug(`[${this.id}] Session restarting`);
+		await this.seek(this.currentPositionIndex);
+		console.debug(`[${this.id}] Session restarted`);
+	}
 
 	segmentComplete (streamIndex: number, segmentIndex: number) {
 		let segments = this.segments[streamIndex];

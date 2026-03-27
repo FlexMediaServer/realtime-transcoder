@@ -31,7 +31,6 @@ export function pipeWait(stream, destination) {
 }
 
 export function getStream (metadata: Ffmpeg.FfprobeData, index) {
-	console.log(metadata.streams)
 	return metadata.streams.find((stream) => stream.index == index)
 }
 
