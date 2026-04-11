@@ -78,7 +78,7 @@ export function hlsOutputOptions(session: InstanceType<typeof TranscodeSession>)
 		// '-segment_list_separate_stream_times 1',
 		// '-segment_list_unfinished 1',
 		'-segment_format_options output_ts_offset=10',
-		`-segment_list http://localhost:32402/transcoder/status/${session.id}/manifest_csv`,
+		`-segment_list http://localhost:32402/session/status/${session.id}/manifest_csv`,
 		'-segment_list_type csv',
 		'-segment_list_size 5',
 		'-max_delay 5000000',

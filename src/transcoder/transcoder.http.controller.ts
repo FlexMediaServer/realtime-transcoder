@@ -10,7 +10,7 @@ import { StartTranscodeDto } from './transcoder.dto';
 export class TranscoderHTTPController {
 	constructor(private transcoderService: TranscoderService) {}
 
-	@Get('/start')
+	@Get('/session/start')
 	async startHTTP(@Param() params, @Query() query: StartTranscodeDto, @Res() res, @Headers() headers) {
 		console.log(headers['range'], query['offset']);
 		const session_ = this.transcoderService.getSession(query.session);

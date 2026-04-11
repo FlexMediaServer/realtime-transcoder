@@ -110,12 +110,14 @@ export class TranscoderController {
 				}
 			</style>
 			<script>
+					const pageBaseUrl = window.location.origin;
+
 					setInterval(() => {
   						location.reload();
 					}, 10000);
 
 					function dropSession(id) {
-						fetch('/transcoder/' + id, {
+						fetch(pageBaseUrl + '/session/' + id, {
 							method: 'DELETE'
 						})
 						.then(res => {
@@ -128,7 +130,7 @@ export class TranscoderController {
 					}
 					
 					function restartSession(id) {
-						fetch('/transcoder/' + id, {
+						fetch(pageBaseUrl + '/session/' + id, {
 							method: 'PUT'
 						})
 						.then(res => {
@@ -143,10 +145,10 @@ export class TranscoderController {
 		`
 	}
 
-	@Get('/transcoder/ping')
+	@Get('/ping')
 	ping() {}
 
-	@Get('/transcoder/metadata')
+	@Get('/metadata')
 	async metadata(@Query() query: { url: string }) {
 		let metadata = await this.transcoderService.getMetadata(query.url);
 
@@ -154,7 +156,7 @@ export class TranscoderController {
 	}
 
 	@UseGuards(BasicAuthGuard)
-	@Delete('/transcoder/:id')
+	@Delete('/session/:id')
 	async dropSession (@Param('id') id) {
 		if (this.transcoderService.getSession(id) == undefined) throw new NotFoundException();
 		await this.transcoderService.getSession(id)?.stop()
@@ -162,13 +164,13 @@ export class TranscoderController {
 	}
 
 	@UseGuards(BasicAuthGuard)
-	@Put('/transcoder/:id')
+	@Put('/session/:id')
 	async restartSession (@Param('id') id) {
 		if (this.transcoderService.getSession(id) == undefined) throw new NotFoundException();
 		await this.transcoderService.getSession(id)?.restart()
 	}
 
-	@Post('/transcoder/status/:id/manifest_mpd')
+	@Post('/session/status/:id/manifest_mpd')
 	dashManifest(@Req() req, @Param() params) {
 
 		const session = this.transcoderService.getSession(params.id);
@@ -207,7 +209,7 @@ export class TranscoderController {
 		});
 	}
 
-	@Post('/transcoder/status/:id/manifest_csv')
+	@Post('/session/status/:id/manifest_csv')
 	segmentList(@Req() req, @Param() params) {
 		const session = this.transcoderService.getSession(params.id);
 		req.setEncoding('utf8');

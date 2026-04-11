@@ -89,7 +89,7 @@ export function dashOutputOptions(session: InstanceType<typeof TranscodeSession>
 		//Prevents unnecessary addition of -skip-to-segment. (Note DASH segments start at 1)
 		session.startIndex > 1 ? `-skip_to_segment ${session.startIndex}` : undefined,
 		// '-time_delta 0.0625',
-		`-manifest_name http://localhost:32402/transcoder/status/${session.id}/manifest_mpd`,
+		`-manifest_name http://localhost:32402/session/status/${session.id}/manifest_mpd`,
 		'-method POST',
 		'-map_metadata -1'
 	];
@@ -107,7 +107,7 @@ export function dashOutputOptions(session: InstanceType<typeof TranscodeSession>
 	// 	segmentIndex > 0
 	// 		? '-segment_format_options movflags=+dash+delay_moov+global_sidx+skip_trailer+frag_discont'
 	// 		: '-segment_format_options movflags=+dash+delay_moov+global_sidx+skip_trailer',
-	// 	`-segment_list http://localhost:32402/transcoder/status/${sessionId}/manifest_csv`,
+	// 	`-segment_list http://localhost:32402/session/status/${sessionId}/manifest_csv`,
 	// 	'-segment_list_type csv',
 	// 	'-segment_list_size 5',
 	// 	'-max_delay 5000000',

@@ -10,7 +10,7 @@ import { StartTranscodeDto } from './transcoder.dto';
 export class TranscoderDASHController {
 	constructor(private transcoderService: TranscoderService) {}
 
-	@Get('/start.mpd')
+	@Get('/session/start.mpd')
 	@Header('content-type', 'text/xml')
 	async startDash(@Req() req, @Param() params, @Query() query: StartTranscodeDto) {
 		console.debug(`[${query.session}] Started session with URL: ${req.url}`)
@@ -45,7 +45,7 @@ export class TranscoderDASHController {
 		return generateManifest(newSession.id, newSession);
 	}
 
-	@Get('/:session/:stream/init.m4s')
+	@Get('/session/:session/:stream/init.m4s')
 	async getHeaderDash(@Res() res, @Param() params) {
 		const session = this.transcoderService.getSession(params.session);
 		if (!session) throw new NotFoundException();
@@ -57,7 +57,7 @@ export class TranscoderDASHController {
 		fs.createReadStream(segmentPath).pipe(res);
 	}
 
-	@Get('/:session/:stream/:segment.m4s')
+	@Get('/session/:session/:stream/:segment.m4s')
 	async getSegmentDash(@Res() res, @Param() params) {
 		console.debug(`[${params.session}] Getting segment (dash)`, params)
 		const session = this.transcoderService.getSession(params.session);

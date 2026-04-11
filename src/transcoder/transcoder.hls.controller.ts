@@ -12,7 +12,7 @@ import { StartTranscodeDto } from './transcoder.dto';
 export class TranscoderHLSController {
 	constructor(private transcoderService: TranscoderService) {}
 
-	@Get('/start.m3u8')
+	@Get('/session/start.m3u8')
 	@Header('content-type', 'application/vnd.apple.mpegurl')
 	async startHls(@Req() req, @Param() params, @Query() query: StartTranscodeDto) {
 		console.debug(`[${query.session}] Started session with URL: ${req.url}`)
@@ -46,7 +46,7 @@ export class TranscoderHLSController {
 		return generateMasterPlaylist(session);
 	}
 
-	@Get('/:session/base/index.m3u8')
+	@Get('/session/:session/base/index.m3u8')
 	@Header('content-type', 'application/vnd.apple.mpegurl')
 	async index(@Param() param) {
 		const session = this.transcoderService.getSession(param.session);
@@ -56,7 +56,7 @@ export class TranscoderHLSController {
 		return generatePlaylist(session, session.segmentLengthSeconds);
 	}
 
-	@Get('/:session/base/:segment.ts')
+	@Get('/session/:session/base/:segment.ts')
 	async getSegment(@Res() res, @Param() params) {
 		console.debug(`[${params.session}] Getting segment (hls)`, params)
 		// await waitForFile(`/tmp/transcode/${params.session}/${params.segment}.ts`);

@@ -9,7 +9,7 @@ export function httpOutputOptions(session: InstanceType<typeof TranscodeSession>
 		`-segment_time ${session.segmentLengthSeconds}`,
 		'-segment_list_separate_stream_times 1',
 		'-segment_list_unfinished 1',
-		`-segment_list http://localhost:32402/transcoder/status/${session.id}/manifest_csv`,
+		`-segment_list http://localhost:32402/session/status/${session.id}/manifest_csv`,
 		'-segment_list_type csv',
 		'-segment_list_size 5',
 		'-flags +global_header',
