@@ -6,7 +6,7 @@ import path from 'path';
 import { waitForFile } from 'src/utils/general';
 import { StartTranscodeDto } from './transcoder.dto';
 
-@Controller('transcoder')
+@Controller()
 export class TranscoderDASHController {
 	constructor(private transcoderService: TranscoderService) {}
 

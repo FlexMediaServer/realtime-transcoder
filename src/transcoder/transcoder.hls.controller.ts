@@ -8,7 +8,7 @@ import path from 'path';
 import randomstring from 'randomstring';
 import { StartTranscodeDto } from './transcoder.dto';
 
-@Controller('transcoder')
+@Controller()
 export class TranscoderHLSController {
 	constructor(private transcoderService: TranscoderService) {}
 

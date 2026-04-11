@@ -6,7 +6,7 @@ import { pipeWait } from 'src/utils/general';
 import randomstring from 'randomstring';
 import { StartTranscodeDto } from './transcoder.dto';
 
-@Controller('transcoder')
+@Controller()
 export class TranscoderHTTPController {
 	constructor(private transcoderService: TranscoderService) {}
 
