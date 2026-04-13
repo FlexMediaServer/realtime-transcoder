@@ -4,6 +4,7 @@ import { fromXML } from 'from-xml';
 import { parse } from 'csv-parse';
 import { BasicAuthGuard } from 'src/middleware/basic-auth.guard';
 import Keyv from 'keyv';
+import { MetadataDto } from './transcoder.dto';
 
 @Controller()
 export class TranscoderController {
@@ -110,7 +111,7 @@ export class TranscoderController {
 				}
 			</style>
 			<script>
-					const pageBaseUrl = window.location.origin;
+					const pageBaseUrl = window.location.pathname;
 
 					setInterval(() => {
   						location.reload();
@@ -149,7 +150,7 @@ export class TranscoderController {
 	ping() {}
 
 	@Get('/metadata')
-	async metadata(@Query() query: { url: string }) {
+	async metadata(@Query() query: MetadataDto) {
 		let metadata = await this.transcoderService.getMetadata(query.url);
 
 		return { metadata };

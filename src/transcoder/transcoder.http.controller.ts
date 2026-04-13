@@ -1,5 +1,6 @@
-import { Controller, Get, Param, Query, Res, Headers } from '@nestjs/common';
+import { Controller, Get, Param, Query, Res, Headers, UseGuards } from '@nestjs/common';
 import { PassThrough } from 'stream';
+import { SignedUrlGuard } from 'src/middleware/signed-url.guard';
 import { TranscoderService } from './transcoder.service';
 import fs from 'fs';
 import { pipeWait } from 'src/utils/general';
@@ -10,6 +11,7 @@ import { StartTranscodeDto } from './transcoder.dto';
 export class TranscoderHTTPController {
 	constructor(private transcoderService: TranscoderService) {}
 
+	@UseGuards(SignedUrlGuard)
 	@Get('/session/start')
 	async startHTTP(@Param() params, @Query() query: StartTranscodeDto, @Res() res, @Headers() headers) {
 		console.log(headers['range'], query['offset']);

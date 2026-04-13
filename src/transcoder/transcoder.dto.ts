@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsNotEmpty, IsNumber, IsNumberString, IsOptional, IsString, Matches } from 'class-validator';
+import { IsBoolean, IsEnum, IsNotEmpty, IsNumber, IsNumberString, IsOptional, IsString, IsUrl, Matches } from 'class-validator';
 
 export enum Preset {
 	ULTRAFAST = 'ultrafast',
@@ -69,4 +69,11 @@ export class StartTranscodeDto {
 	@IsString()
 	@Matches(/^-?\d+x-?\d+$/gm)
 	resolution: string; //1920x1080 or -1x1080
+}
+
+
+export class MetadataDto {
+	@IsNotEmpty()
+	@IsUrl()
+	url: string
 }
