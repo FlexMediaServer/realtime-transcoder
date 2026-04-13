@@ -807,9 +807,21 @@ RUN \
 	tar -zx --strip-components=1 -C /tmp/x265
 RUN \
 	echo "**** compiling x265 ****" && \
-	cd /tmp/x265/build/linux && \
-	./multilib.sh && \
-	make -C 8bit install
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		cd /tmp/x265/build/linux && \
+		./multilib.sh && \
+		make -C 8bit install; \
+	else \
+		mkdir -p /tmp/x265/build/linux/build && \
+		cd /tmp/x265/build/linux/build && \
+		cmake \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DENABLE_SHARED=ON \
+		-DENABLE_STATIC=OFF \
+		../../../source && \
+		make && \
+		make install; \
+	fi
 RUN \
 	echo "**** grabbing xvid ****" && \
 	mkdir -p /tmp/xvid && \
