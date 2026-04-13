@@ -3,6 +3,8 @@
 # build stage
 FROM ghcr.io/linuxserver/baseimage-ubuntu:jammy as buildstage
 
+ARG TARGETARCH
+
 # set version label
 ARG FFMPEG_VERSION
 
@@ -54,7 +56,7 @@ ENV \
 
 RUN \
 	echo "**** install build packages ****" && \
-	apt-get update && \ 
+	apt-get update && \
 	apt-get install -y \
 	autoconf \
 	automake \
@@ -67,46 +69,44 @@ RUN \
 	gcc \
 	git \
 	gperf \
-	i965-va-driver-shaders \
 	libasound2-dev \
 	libexpat1-dev \
 	libgcc-10-dev \
 	libgomp1 \
 	libharfbuzz-dev \
-	libpciaccess-dev \
 	libssl-dev \
 	libtool \
 	libv4l-dev \
-	libwayland-dev \
-	libx11-dev \
-	libx11-xcb-dev \
-	libxcb-dri3-dev \
-	libxcb-present-dev \
-	libxext-dev \
-	libxfixes-dev \
 	libxml2-dev \
-	libxrandr-dev \
 	make \
 	nasm \
 	ninja-build \
-	ocl-icd-opencl-dev \
 	perl \
 	pkg-config \
 	python3-venv \
-	wayland-protocols \
-	x11proto-xext-dev \
-	xserver-xorg-dev \
 	xxd \
 	yasm \
 	zlib1g-dev && \
-	apt-get build-dep mesa -y && \
-	mkdir -p /tmp/rust && \
-	RUST_VERSION=$(curl -fsX GET https://api.github.com/repos/rust-lang/rust/releases/latest | jq -r '.tag_name') && \
-	curl -fo /tmp/rust.tar.gz -L "https://static.rust-lang.org/dist/rust-${RUST_VERSION}-x86_64-unknown-linux-gnu.tar.gz" && \
-	tar xf /tmp/rust.tar.gz -C /tmp/rust --strip-components=1 && \
-	cd /tmp/rust && \
-	./install.sh && \
-	cargo install cargo-c && \
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		apt-get install -y \
+		i965-va-driver-shaders \
+		libpciaccess-dev \
+		libwayland-dev \
+		libx11-dev \
+		libx11-xcb-dev \
+		libxcb-dri3-dev \
+		libxcb-present-dev \
+		libxext-dev \
+		libxfixes-dev \
+		libxrandr-dev \
+		ocl-icd-opencl-dev \
+		wayland-protocols \
+		x11proto-xext-dev \
+		xserver-xorg-dev && \
+		apt-get build-dep mesa -y; \
+	else \
+		echo "**** skipping amd64-only hw build packages for ${TARGETARCH} ****"; \
+	fi && \
 	python3 -m venv /lsiopy && \
 	pip install -U --no-cache-dir \
 	pip \
@@ -152,15 +152,23 @@ RUN \
 	make install
 RUN \
 	echo "**** grabbing ffnvcodec ****" && \
-	mkdir -p /tmp/ffnvcodec && \
-	git clone \
-	--branch ${NVCODEC} \
-	--depth 1 https://git.videolan.org/git/ffmpeg/nv-codec-headers.git \
-	/tmp/ffnvcodec
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/ffnvcodec && \
+		git clone \
+		--branch ${NVCODEC} \
+		--depth 1 https://git.videolan.org/git/ffmpeg/nv-codec-headers.git \
+		/tmp/ffnvcodec; \
+	else \
+		echo "**** skipping ffnvcodec on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** compiling ffnvcodec ****" && \
-	cd /tmp/ffnvcodec && \
-	make install
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		cd /tmp/ffnvcodec && \
+		make install; \
+	else \
+		echo "**** skipping ffnvcodec compile on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** grabbing freetype ****" && \
 	mkdir -p /tmp/freetype && \
@@ -258,159 +266,231 @@ RUN \
 	make install
 RUN \
 	echo "**** grabbing libdrm ****" && \
-	mkdir -p /tmp/libdrm && \
-	curl -Lf \
-	https://dri.freedesktop.org/libdrm/libdrm-${LIBDRM}.tar.xz | \
-	tar -xJ --strip-components=1 -C /tmp/libdrm
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/libdrm && \
+		curl -Lf \
+		https://dri.freedesktop.org/libdrm/libdrm-${LIBDRM}.tar.xz | \
+		tar -xJ --strip-components=1 -C /tmp/libdrm; \
+	else \
+		echo "**** skipping libdrm on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** compiling libdrm ****" && \
-	cd /tmp/libdrm && \
-	meson setup \
-	--prefix=/usr --libdir=/usr/local/lib/x86_64-linux-gnu \
-	-Dvalgrind=disabled \
-	. build && \
-	ninja -C build && \
-	ninja -C build install && \
-	strip -d /usr/local/lib/x86_64-linux-gnu/libdrm*.so
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		cd /tmp/libdrm && \
+		meson setup \
+		--prefix=/usr --libdir=/usr/local/lib/x86_64-linux-gnu \
+		-Dvalgrind=disabled \
+		. build && \
+		ninja -C build && \
+		ninja -C build install && \
+		strip -d /usr/local/lib/x86_64-linux-gnu/libdrm*.so; \
+	else \
+		echo "**** skipping libdrm compile on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** grabbing libva ****" && \
-	mkdir -p /tmp/libva && \
-	curl -Lf \
-	https://github.com/intel/libva/archive/${LIBVA}.tar.gz | \
-	tar -zx --strip-components=1 -C /tmp/libva
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/libva && \
+		curl -Lf \
+		https://github.com/intel/libva/archive/${LIBVA}.tar.gz | \
+		tar -zx --strip-components=1 -C /tmp/libva; \
+	else \
+		echo "**** skipping libva on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** compiling libva ****" && \
-	cd /tmp/libva && \
-	./autogen.sh && \
-	./configure \
-	--disable-static \
-	--enable-shared && \
-	make && \
-	make install && \
-	strip -d \
-	/usr/local/lib/libva.so \
-	/usr/local/lib/libva-drm.so \
-	/usr/local/lib/libva-glx.so \
-	/usr/local/lib/libva-wayland.so \
-	/usr/local/lib/libva-x11.so
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		cd /tmp/libva && \
+		./autogen.sh && \
+		./configure \
+		--disable-static \
+		--enable-shared && \
+		make && \
+		make install && \
+		strip -d \
+		/usr/local/lib/libva.so \
+		/usr/local/lib/libva-drm.so \
+		/usr/local/lib/libva-glx.so \
+		/usr/local/lib/libva-wayland.so \
+		/usr/local/lib/libva-x11.so; \
+	else \
+		echo "**** skipping libva compile on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** grabbing libvdpau ****" && \
-	mkdir -p /tmp/libvdpau && \
-	git clone \
-	--branch ${LIBVDPAU} \
-	--depth 1 https://gitlab.freedesktop.org/vdpau/libvdpau.git \
-	/tmp/libvdpau
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/libvdpau && \
+		git clone \
+		--branch ${LIBVDPAU} \
+		--depth 1 https://gitlab.freedesktop.org/vdpau/libvdpau.git \
+		/tmp/libvdpau; \
+	else \
+		echo "**** skipping libvdpau on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** compiling libvdpau ****" && \
-	cd /tmp/libvdpau && \
-	meson setup \
-	--prefix=/usr --libdir=/usr/local/lib \
-	-Ddocumentation=false \
-	build && \
-	ninja -C build install && \
-	strip -d /usr/local/lib/libvdpau.so
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		cd /tmp/libvdpau && \
+		meson setup \
+		--prefix=/usr --libdir=/usr/local/lib \
+		-Ddocumentation=false \
+		build && \
+		ninja -C build install && \
+		strip -d /usr/local/lib/libvdpau.so; \
+	else \
+		echo "**** skipping libvdpau compile on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** grabbing mesa ****" && \
-	mkdir -p /tmp/mesa && \
-	curl -Lf \
-	https://archive.mesa3d.org/mesa-${MESA}.tar.xz | \
-	tar -xJ --strip-components=1 -C /tmp/mesa
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/mesa && \
+		curl -Lf \
+		https://archive.mesa3d.org/mesa-${MESA}.tar.xz | \
+		tar -xJ --strip-components=1 -C /tmp/mesa; \
+	else \
+		echo "**** skipping mesa on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** compiling mesa ****" && \
-	cd /tmp/mesa && \
-	meson setup \
-	-Dprefix="/usr/local" \
-	-Dbuildtype=release \
-	-Dvideo-codecs=all \
-	builddir/ && \
-	meson compile -C builddir/ && \
-	meson install -C builddir/
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		cd /tmp/mesa && \
+		meson setup \
+		-Dprefix="/usr/local" \
+		-Dbuildtype=release \
+		-Dvideo-codecs=all \
+		builddir/ && \
+		meson compile -C builddir/ && \
+		meson install -C builddir/; \
+	else \
+		echo "**** skipping mesa compile on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** grabbing gmmlib ****" && \
-	mkdir -p /tmp/gmmlib && \
-	curl -Lf \
-	https://github.com/intel/gmmlib/archive/refs/tags/intel-gmmlib-${GMMLIB}.tar.gz | \
-	tar -zx --strip-components=1 -C /tmp/gmmlib
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/gmmlib && \
+		curl -Lf \
+		https://github.com/intel/gmmlib/archive/refs/tags/intel-gmmlib-${GMMLIB}.tar.gz | \
+		tar -zx --strip-components=1 -C /tmp/gmmlib; \
+	else \
+		echo "**** skipping gmmlib on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** compiling gmmlib ****" && \
-	mkdir -p /tmp/gmmlib/build && \
-	cd /tmp/gmmlib/build && \
-	cmake \
-	-DCMAKE_BUILD_TYPE=Release \
-	.. && \
-	make && \
-	make install && \
-	strip -d /usr/local/lib/libigdgmm.so
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/gmmlib/build && \
+		cd /tmp/gmmlib/build && \
+		cmake \
+		-DCMAKE_BUILD_TYPE=Release \
+		.. && \
+		make && \
+		make install && \
+		strip -d /usr/local/lib/libigdgmm.so; \
+	else \
+		echo "**** skipping gmmlib compile on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** grabbing IHD ****" && \
-	mkdir -p /tmp/ihd && \
-	curl -Lf \
-	https://github.com/intel/media-driver/archive/refs/tags/intel-media-${IHD}.tar.gz | \
-	tar -zx --strip-components=1 -C /tmp/ihd
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/ihd && \
+		curl -Lf \
+		https://github.com/intel/media-driver/archive/refs/tags/intel-media-${IHD}.tar.gz | \
+		tar -zx --strip-components=1 -C /tmp/ihd; \
+	else \
+		echo "**** skipping IHD on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** compiling IHD ****" && \
-	mkdir -p /tmp/ihd/build && \
-	cd /tmp/ihd/build && \
-	cmake \
-	-DLIBVA_DRIVERS_PATH=/usr/local/lib/x86_64-linux-gnu/dri/ \
-	.. && \
-	make && \
-	make install && \
-	strip -d /usr/local/lib/x86_64-linux-gnu/dri/iHD_drv_video.so
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/ihd/build && \
+		cd /tmp/ihd/build && \
+		cmake \
+		-DLIBVA_DRIVERS_PATH=/usr/local/lib/x86_64-linux-gnu/dri/ \
+		.. && \
+		make && \
+		make install && \
+		strip -d /usr/local/lib/x86_64-linux-gnu/dri/iHD_drv_video.so; \
+	else \
+		echo "**** skipping IHD compile on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** grabbing libvpl ****" && \
-	mkdir -p /tmp/libvpl && \
-	curl -Lf \
-	https://github.com/oneapi-src/oneVPL/archive/refs/tags/v${LIBVPL}.tar.gz | \
-	tar -zx --strip-components=1 -C /tmp/libvpl
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/libvpl && \
+		curl -Lf \
+		https://github.com/oneapi-src/oneVPL/archive/refs/tags/v${LIBVPL}.tar.gz | \
+		tar -zx --strip-components=1 -C /tmp/libvpl; \
+	else \
+		echo "**** skipping libvpl on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** compiling libvpl ****" && \
-	mkdir -p /tmp/libvpl/build && \
-	cd /tmp/libvpl/build && \
-	cmake .. && \ 
-	cmake --build . --config Release && \
-	cmake --build . --config Release --target install && \
-	strip -d /usr/local/lib/libvpl.so
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/libvpl/build && \
+		cd /tmp/libvpl/build && \
+		cmake .. && \
+		cmake --build . --config Release && \
+		cmake --build . --config Release --target install && \
+		strip -d /usr/local/lib/libvpl.so; \
+	else \
+		echo "**** skipping libvpl compile on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** grabbing onevpl ****" && \
-	mkdir -p /tmp/onevpl && \
-	curl -Lf \
-	https://github.com/oneapi-src/oneVPL-intel-gpu/archive/refs/tags/intel-onevpl-${ONEVPL}.tar.gz | \
-	tar -zx --strip-components=1 -C /tmp/onevpl
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/onevpl && \
+		curl -Lf \
+		https://github.com/oneapi-src/oneVPL-intel-gpu/archive/refs/tags/intel-onevpl-${ONEVPL}.tar.gz | \
+		tar -zx --strip-components=1 -C /tmp/onevpl; \
+	else \
+		echo "**** skipping onevpl on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** compiling onevpl ****" && \
-	mkdir -p /tmp/onevpl/build && \
-	cd /tmp/onevpl/build && \
-	cmake \
-	-DCMAKE_INSTALL_PREFIX=/usr \
-	-DCMAKE_INSTALL_LIBDIR=/usr/local/lib \
-	.. && \ 
-	make && \
-	make install && \
-	strip -d /usr/local/lib/libmfx-gen.so
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/onevpl/build && \
+		cd /tmp/onevpl/build && \
+		cmake \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=/usr/local/lib \
+		.. && \
+		make && \
+		make install && \
+		strip -d /usr/local/lib/libmfx-gen.so; \
+	else \
+		echo "**** skipping onevpl compile on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** grabbing libmfx ****" && \
-	mkdir -p /tmp/libmfx && \
-	curl -Lf \
-	https://github.com/Intel-Media-SDK/MediaSDK/archive/refs/tags/intel-mediasdk-${LIBMFX}.tar.gz | \
-	tar -zx --strip-components=1 -C /tmp/libmfx
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/libmfx && \
+		curl -Lf \
+		https://github.com/Intel-Media-SDK/MediaSDK/archive/refs/tags/intel-mediasdk-${LIBMFX}.tar.gz | \
+		tar -zx --strip-components=1 -C /tmp/libmfx; \
+	else \
+		echo "**** skipping libmfx on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** compiling libmfx ****" && \
-	mkdir -p /tmp/libmfx/build && \
-	cd /tmp/libmfx/build && \
-	cmake \
-	-DCMAKE_INSTALL_PREFIX=/usr \
-	-DCMAKE_INSTALL_LIBDIR=/usr/local/lib \
-	-DBUILD_SAMPLES=OFF \
-	-DENABLE_X11_DRI3=ON \
-	-DBUILD_DISPATCHER=OFF \
-	-DBUILD_TUTORIALS=OFF \
-	.. && \ 
-	make && \
-	make install && \
-	strip -d \
-	/usr/local/lib/libmfxhw64.so \
-	/usr/local/lib/mfx/libmfx_*.so
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/libmfx/build && \
+		cd /tmp/libmfx/build && \
+		cmake \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=/usr/local/lib \
+		-DBUILD_SAMPLES=OFF \
+		-DENABLE_X11_DRI3=ON \
+		-DBUILD_DISPATCHER=OFF \
+		-DBUILD_TUTORIALS=OFF \
+		.. && \
+		make && \
+		make install && \
+		strip -d \
+		/usr/local/lib/libmfxhw64.so \
+		/usr/local/lib/mfx/libmfx_*.so; \
+	else \
+		echo "**** skipping libmfx compile on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** grabbing vmaf ****" && \
 	mkdir -p /tmp/vmaf && \
@@ -502,22 +582,30 @@ RUN \
 # 	strip -d /usr/local/lib/librav1e.so
 RUN \
 	echo "**** grabbing shaderc ****" && \
-	mkdir -p /tmp/shaderc && \
-	git clone \
-	--branch ${SHADERC} \
-	--depth 1 https://github.com/google/shaderc.git \
-	/tmp/shaderc
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/shaderc && \
+		git clone \
+		--branch ${SHADERC} \
+		--depth 1 https://github.com/google/shaderc.git \
+		/tmp/shaderc; \
+	else \
+		echo "**** skipping shaderc on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** compiling shaderc ****" && \
-	cd /tmp/shaderc && \
-	./utils/git-sync-deps && \
-	mkdir -p build && \
-	cd build && \
-	cmake -GNinja \
-	-DCMAKE_BUILD_TYPE=Release \
-	-DCMAKE_INSTALL_PREFIX=/usr/local \
-	.. && \
-	ninja install
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		cd /tmp/shaderc && \
+		./utils/git-sync-deps && \
+		mkdir -p build && \
+		cd build && \
+		cmake -GNinja \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_INSTALL_PREFIX=/usr/local \
+		.. && \
+		ninja install; \
+	else \
+		echo "**** skipping shaderc compile on ${TARGETARCH} ****"; \
+	fi
 # RUN \
 # 	echo "**** grabbing libdovi ****" && \
 # 	mkdir -p /tmp/libdovi && \
@@ -532,16 +620,24 @@ RUN \
 # 	strip -d /usr/local/lib/libdovi.so
 RUN \
 	echo "**** grabbing libplacebo ****" && \
-	mkdir -p /tmp/libplacebo && \
-	git clone \
-	--branch v${LIBPLACEBO} \
-	--recursive https://code.videolan.org/videolan/libplacebo \
-	/tmp/libplacebo
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/libplacebo && \
+		git clone \
+		--branch v${LIBPLACEBO} \
+		--recursive https://code.videolan.org/videolan/libplacebo \
+		/tmp/libplacebo; \
+	else \
+		echo "**** skipping libplacebo on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** compiling libplacebo ****" && \
-	cd /tmp/libplacebo && \
-	meson build --buildtype release && \
-	ninja -C build install
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		cd /tmp/libplacebo && \
+		meson build --buildtype release && \
+		ninja -C build install; \
+	else \
+		echo "**** skipping libplacebo compile on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** grabbing SVT-AV1 ****" && \
 	mkdir -p /tmp/svt-av1 && \
@@ -630,35 +726,51 @@ RUN \
 	make install
 RUN \
 	echo "**** grabbing vulkan headers ****" && \
-	mkdir -p /tmp/vulkan-headers && \
-	git clone \
-	--branch ${VULKANSDK} \
-	--depth 1 https://github.com/KhronosGroup/Vulkan-Headers.git \
-	/tmp/vulkan-headers
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/vulkan-headers && \
+		git clone \
+		--branch ${VULKANSDK} \
+		--depth 1 https://github.com/KhronosGroup/Vulkan-Headers.git \
+		/tmp/vulkan-headers; \
+	else \
+		echo "**** skipping vulkan headers on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** compiling vulkan headers ****" && \
-	cd /tmp/vulkan-headers && \
-	cmake -S . -B build/ && \
-	cmake --install build --prefix /usr/local
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		cd /tmp/vulkan-headers && \
+		cmake -S . -B build/ && \
+		cmake --install build --prefix /usr/local; \
+	else \
+		echo "**** skipping vulkan headers compile on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** grabbing vulkan loader ****" && \
-	mkdir -p /tmp/vulkan-loader && \
-	git clone \
-	--branch ${VULKANSDK} \
-	--depth 1 https://github.com/KhronosGroup/Vulkan-Loader.git \
-	/tmp/vulkan-loader
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p /tmp/vulkan-loader && \
+		git clone \
+		--branch ${VULKANSDK} \
+		--depth 1 https://github.com/KhronosGroup/Vulkan-Loader.git \
+		/tmp/vulkan-loader; \
+	else \
+		echo "**** skipping vulkan loader on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** compiling vulkan loader ****" && \
-	cd /tmp/vulkan-loader && \
-	mkdir -p build && \
-	cd build && \
-	cmake \
-	-D CMAKE_BUILD_TYPE=Release \
-	-D VULKAN_HEADERS_INSTALL_DIR=/usr/local/lib/x86_64-linux-gnu \
-	-D CMAKE_INSTALL_PREFIX=/usr/local \
-	.. && \
-	make && \
-	make install
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		cd /tmp/vulkan-loader && \
+		mkdir -p build && \
+		cd build && \
+		cmake \
+		-D CMAKE_BUILD_TYPE=Release \
+		-D VULKAN_HEADERS_INSTALL_DIR=/usr/local/lib/x86_64-linux-gnu \
+		-D CMAKE_INSTALL_PREFIX=/usr/local \
+		.. && \
+		make && \
+		make install; \
+	else \
+		echo "**** skipping vulkan loader compile on ${TARGETARCH} ****"; \
+	fi
 RUN \
 	echo "**** grabbing webp ****" && \
 	mkdir -p /tmp/webp && \
@@ -745,12 +857,17 @@ RUN \
 RUN \
 	echo "**** compiling ffmpeg ****" && \
 	cd /tmp/ffmpeg && \
+	hw_flags="" && \
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		hw_flags="--enable-cuvid --enable-libplacebo --enable-libshaderc --enable-libvpl --enable-nvdec --enable-nvenc --enable-cuda-llvm --enable-opencl --enable-vaapi --enable-vdpau --enable-vulkan"; \
+	else \
+		echo "**** skipping amd64-only hw ffmpeg flags for ${TARGETARCH} ****"; \
+	fi && \
 	bash ./configure \
 	--disable-debug \
 	--disable-doc \
 	--disable-ffplay \
 	--enable-alsa \
-	--enable-cuvid \
 	--enable-ffprobe \
 	--enable-gpl \
 	--enable-libaom \
@@ -763,16 +880,12 @@ RUN \
 	--enable-libopencore-amrwb \
 	--enable-libopenjpeg \
 	--enable-libopus \
-	--enable-libplacebo \
-	# --enable-librav1e \
-	--enable-libshaderc \
 	--enable-libsvtav1 \
 	--enable-libtheora \
 	--enable-libv4l2 \
 	--enable-libvidstab \
 	--enable-libvmaf \
 	--enable-libvorbis \
-	--enable-libvpl \
 	--enable-libvpx \
 	--enable-libwebp \
 	--enable-libx264 \
@@ -781,32 +894,18 @@ RUN \
 	--enable-libxvid \
 	--enable-libzimg \
 	--enable-nonfree \
-	--enable-nvdec \
-	--enable-nvenc \
-	--enable-cuda-llvm \
-	--enable-opencl \
 	--enable-openssl \
 	--enable-stripping \
-	--enable-vaapi \
-	--enable-vdpau \
 	--enable-version3 \
-	--enable-vulkan && \
+	$hw_flags && \
 	make
 
 RUN \
 	echo "**** arrange files ****" && \
-	/usr/local/lib/rustlib/uninstall.sh && \
 	ldconfig && \
 	mkdir -p \
 	/buildout/usr/local/bin \
-	/buildout/usr/local/lib/libmfx-gen \
-	/buildout/usr/local/lib/mfx \
-	/buildout/usr/local/lib/vpl \
-	/buildout/usr/local/lib/x86_64-linux-gnu/dri \
-	/buildout/usr/local/lib/x86_64-linux-gnu/vdpau \
-	/buildout/usr/local/share/vulkan \
-	/buildout/usr/share/libdrm \
-	/buildout/etc/OpenCL/vendors && \
+	/buildout/usr/local/lib && \
 	cp \
 	/tmp/ffmpeg/ffmpeg \
 	/buildout/usr/local/bin && \
@@ -816,39 +915,55 @@ RUN \
 	cp -a \
 	/usr/local/lib/lib*so* \
 	/buildout/usr/local/lib/ && \
-	cp -a \
-	/usr/local/lib/libmfx-gen/*.so \
-	/buildout/usr/local/lib/libmfx-gen/ && \
-	cp -a \
-	/usr/local/lib/mfx/*.so \
-	/buildout/usr/local/lib/mfx/ && \
-	cp -a \
-	/usr/local/lib/vpl/*.so \
-	/buildout/usr/local/lib/vpl/ && \
-	cp -a \
-	/usr/local/lib/x86_64-linux-gnu/lib*so* \
-	/buildout/usr/local/lib/x86_64-linux-gnu/ && \
-	cp -a \
-	/usr/local/lib/x86_64-linux-gnu/dri/*.so \
-	/buildout/usr/local/lib/x86_64-linux-gnu/dri/ && \
-	cp -a \
-	/usr/local/lib/x86_64-linux-gnu/vdpau/*.so \
-	/buildout/usr/local/lib/x86_64-linux-gnu/vdpau/ && \
-	cp -a \
-	/usr/lib/x86_64-linux-gnu/dri/i965* \
-	/buildout/usr/local/lib/x86_64-linux-gnu/dri/ && \
-	cp -a \
-	/usr/share/libdrm/amdgpu.ids \
-	/buildout/usr/share/libdrm/ && \
-	cp -a \
-	/usr/local/share/vulkan/* \
-	/buildout/usr/local/share/vulkan/ && \
-	echo \
-	'libnvidia-opencl.so.1' > \
-	/buildout/etc/OpenCL/vendors/nvidia.icd
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		mkdir -p \
+		/buildout/usr/local/lib/libmfx-gen \
+		/buildout/usr/local/lib/mfx \
+		/buildout/usr/local/lib/vpl \
+		/buildout/usr/local/lib/x86_64-linux-gnu \
+		/buildout/usr/local/lib/x86_64-linux-gnu/dri \
+		/buildout/usr/local/lib/x86_64-linux-gnu/vdpau \
+		/buildout/usr/local/share/vulkan \
+		/buildout/usr/share/libdrm \
+		/buildout/etc/OpenCL/vendors && \
+		cp -a \
+		/usr/local/lib/libmfx-gen/*.so \
+		/buildout/usr/local/lib/libmfx-gen/ && \
+		cp -a \
+		/usr/local/lib/mfx/*.so \
+		/buildout/usr/local/lib/mfx/ && \
+		cp -a \
+		/usr/local/lib/vpl/*.so \
+		/buildout/usr/local/lib/vpl/ && \
+		cp -a \
+		/usr/local/lib/x86_64-linux-gnu/lib*so* \
+		/buildout/usr/local/lib/x86_64-linux-gnu/ && \
+		cp -a \
+		/usr/local/lib/x86_64-linux-gnu/dri/*.so \
+		/buildout/usr/local/lib/x86_64-linux-gnu/dri/ && \
+		cp -a \
+		/usr/local/lib/x86_64-linux-gnu/vdpau/*.so \
+		/buildout/usr/local/lib/x86_64-linux-gnu/vdpau/ && \
+		cp -a \
+		/usr/lib/x86_64-linux-gnu/dri/i965* \
+		/buildout/usr/local/lib/x86_64-linux-gnu/dri/ && \
+		cp -a \
+		/usr/share/libdrm/amdgpu.ids \
+		/buildout/usr/share/libdrm/ && \
+		cp -a \
+		/usr/local/share/vulkan/* \
+		/buildout/usr/local/share/vulkan/ && \
+		echo \
+		'libnvidia-opencl.so.1' > \
+		/buildout/etc/OpenCL/vendors/nvidia.icd; \
+	else \
+		echo "**** skipping amd64-only hw runtime artifacts for ${TARGETARCH} ****"; \
+	fi
 
 # runtime stage
 FROM ghcr.io/linuxserver/baseimage-ubuntu:jammy
+
+ARG TARGETARCH
 
 # Add files from binstage
 COPY --from=buildstage /buildout/ /
@@ -881,25 +996,30 @@ RUN \
 	libharfbuzz0b \
 	libllvm15 \
 	libmpdec3 \
-	libpciaccess0 \
 	libv4l-0 \
-	libwayland-client0 \
-	libx11-6 \
-	libx11-xcb1 \
-	libxcb-dri2-0 \
-	libxcb-dri3-0 \
-	libxcb-present0 \
-	libxcb-randr0 \
-	libxcb-shape0 \
-	libxcb-shm0 \
-	libxcb-sync1 \
-	libxcb-xfixes0 \
-	libxcb1 \
-	libxext6 \
-	libxfixes3 \
-	libxshmfence1 \
-	libxml2 \
-	ocl-icd-libopencl1 && \
+	libxml2 && \
+	if [ "$TARGETARCH" = "amd64" ]; then \
+		apt-get install -y \
+		libpciaccess0 \
+		libwayland-client0 \
+		libx11-6 \
+		libx11-xcb1 \
+		libxcb-dri2-0 \
+		libxcb-dri3-0 \
+		libxcb-present0 \
+		libxcb-randr0 \
+		libxcb-shape0 \
+		libxcb-shm0 \
+		libxcb-sync1 \
+		libxcb-xfixes0 \
+		libxcb1 \
+		libxext6 \
+		libxfixes3 \
+		libxshmfence1 \
+		ocl-icd-libopencl1; \
+	else \
+		echo "**** skipping amd64-only hw runtime packages for ${TARGETARCH} ****"; \
+	fi && \
 	echo "**** clean up ****" && \
 	rm -rf \
 	/var/lib/apt/lists/* \
