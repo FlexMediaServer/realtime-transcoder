@@ -64,16 +64,20 @@ export class TranscoderService {
 		let metadata = await this.metadataCache.get(url);
 
 		if (!metadata) {
-			console.debug(`[DEBUG] Fetching metadata: ${url}`)
+			console.debug(`Fetching metadata: ${url}`)
 
-			metadata = await new Promise<Ffmpeg.FfprobeData>(((resolve, reject) => {
-				Ffmpeg.ffprobe(url, function (err, metadata) {
-					if (err) return reject(err);
-					resolve(metadata);
-				});
-			}).bind(this));
+			try {
+				metadata = await new Promise<Ffmpeg.FfprobeData>(((resolve, reject) => {
+					Ffmpeg.ffprobe(url, function (err, metadata) {
+						if (err) return reject(err);
+						resolve(metadata);
+					});
+				}).bind(this));
 
-			await this.metadataCache.set(url, metadata, 24 * 60 * 60 * 1000)
+				await this.metadataCache.set(url, metadata, 24 * 60 * 60 * 1000)
+			} catch (e) {
+				console.debug(`ERROR: Failed to fetch metadata for "${url}"...`)
+			}
 		}
 
 		return metadata;

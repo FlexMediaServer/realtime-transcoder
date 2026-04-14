@@ -12,7 +12,7 @@ export class TranscoderHTTPController {
 
 	@Get('/session/start')
 	async startHTTP(@Param() params, @Query() query: StartTranscodeDto, @Res() res, @Headers() headers) {
-		console.log(headers['range'], query['offset']);
+		console.debug(headers['range'], query['offset']);
 		const session_ = this.transcoderService.getSession(query.session);
 		const session =
 			session_ &&
@@ -37,10 +37,10 @@ export class TranscoderHTTPController {
 					preset: query.preset,
 				});
 
-		console.log('Session: ', session.id);
+		console.debug('Session: ', session.id);
 		await session.waitForStart();
 		await session.waitForSegment(0, 1);
-		console.log('Sending header');
+		console.debug('Sending header');
 		await pipeWait(fs.createReadStream(`${session.folderPath}/header`), res);
 
 		let segment = session.startIndex;

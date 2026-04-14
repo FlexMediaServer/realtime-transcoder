@@ -4,13 +4,15 @@ import { ValidationPipe } from '@nestjs/common';
 import 'dotenv/config';
 import util from 'node:util';
 
-if (process.env.NODE_ENV !== 'development') {
-  console.debug = function () {};
-}
-const originalConsoleLog = console.log;
-console.log =  function (...args) {
-	originalConsoleLog(...args.map((arg) => typeof arg === 'object' ? util.inspect(arg, { showHidden: false, depth: null }) : arg));
-}
+const debugFn = console.debug;
+console.debug = function (...properties) {
+	if (process.env.LOG_LEVEL === 'debug') debugFn('[DEBUG]', ...properties)
+};
+
+const infoFn = console.info;
+console.info = function (...properties) {
+	if (process.env.LOG_LEVEL === 'info' || process.env.LOG_LEVEL === 'debug') infoFn('[INFO]', ...properties)
+};
 
 async function bootstrap() {
 	const app = await NestFactory.create(AppModule);
