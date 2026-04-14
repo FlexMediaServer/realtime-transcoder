@@ -119,7 +119,7 @@ export class TranscoderController {
 				}
 			</style>
 			<script>
-					const pageBaseUrl = window.location.origin;
+					const pageBaseUrl = window.location.pathname ? window.location.pathname : '';
 
 					setInterval(() => {
   						location.reload();
