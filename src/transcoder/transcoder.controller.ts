@@ -1,13 +1,22 @@
-import { Body, Controller, Delete, Get, Header, NotFoundException, Param, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, NotFoundException, Param, Post, Put, Query, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { TranscoderService } from './transcoder.service';
 import { fromXML } from 'from-xml';
 import { parse } from 'csv-parse';
 import { BasicAuthGuard } from 'src/middleware/basic-auth.guard';
 import Keyv from 'keyv';
+import { verifyUrl } from 'src/utils/signing';
+import { JwtService } from '@nestjs/jwt';
 
 @Controller()
 export class TranscoderController {
-	constructor(private readonly transcoderService: TranscoderService) {}
+	constructor(private readonly transcoderService: TranscoderService, private readonly jwtService: JwtService) {}
+
+	@Delete('/all/:token')
+	async clearAllTranscodeSessions(@Param('token') token: string) {
+		if(this.jwtService.verify(decodeURIComponent(token), { secret: process.env.SIGNING_SECRET ?? 'Really? You were too lazy to set one?' }) && this.jwtService.decode(decodeURIComponent(token)) === ({ delete: true })) throw new UnauthorizedException("You are not the Plextra server owner");
+		await Object.values(this.transcoderService.sessions).forEach(async (session) => await session.stop());
+		this.transcoderService.sessions = {};
+	}
 
 	@UseGuards(BasicAuthGuard)
 	@Get('/')

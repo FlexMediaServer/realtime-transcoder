@@ -3,25 +3,16 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TranscoderModule } from './transcoder/transcoder.module';
 import * as net from 'net';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
-  imports: [TranscoderModule],
-  controllers: [AppController],
-  providers: [AppService
-    // , {
-  //   provide: 'TCPServerService',
-  //   useFactory: () => {
-  //     const server = net.createServer(socket => {
-  //       socket.pipe(
-
-  //       )
-  //     });
-
-  //     server.listen(32403, '127.0.0.1');
-
-  //     return server;
-  //   }
-  // }
-],
+	imports: [
+		TranscoderModule, 
+		JwtModule.register({
+			secret: process.env.SIGNING_SECRET ?? 'Really? You were too lazy to set one?'
+		})
+	],
+	controllers: [AppController],
+	providers: [AppService],
 })
 export class AppModule {}

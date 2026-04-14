@@ -1,4 +1,4 @@
-import { Controller, Get, Header, NotFoundException, Param, Query, Req, Res } from '@nestjs/common';
+import { Controller, Get, Header, NotFoundException, Param, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { segmentThrottleSeconds, TranscoderService } from './transcoder.service';
 import fs from 'fs';
 import { stringify } from 'hls-parser';
@@ -7,12 +7,14 @@ import { generateMasterPlaylist, generatePlaylist } from 'src/utils/hls';
 import path from 'path';
 import randomstring from 'randomstring';
 import { StartTranscodeDto } from './transcoder.dto';
+import { UrlSignatureGuard } from 'src/middleware/url-signature.guard';
 
 @Controller()
 export class TranscoderHLSController {
 	constructor(private transcoderService: TranscoderService) {}
 
 	@Get('/session/start.m3u8')
+	@UseGuards(UrlSignatureGuard)
 	@Header('content-type', 'application/vnd.apple.mpegurl')
 	async startHls(@Req() req, @Param() params, @Query() query: StartTranscodeDto) {
 		console.debug(`[${query.session}] Started session with URL: ${req.url}`)

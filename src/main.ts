@@ -1,7 +1,7 @@
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import 'dotenv/config';
 import util from 'node:util';
 
 const debugFn = console.debug;

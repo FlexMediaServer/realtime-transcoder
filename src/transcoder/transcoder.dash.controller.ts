@@ -1,16 +1,18 @@
-import { Controller, Get, Header, NotFoundException, Param, Query, Req, Res } from '@nestjs/common';
+import { Controller, Get, Header, NotFoundException, Param, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { TranscoderService } from './transcoder.service';
 import fs from 'fs';
 import { generateManifest } from 'src/utils/dash';
 import path from 'path';
 import { waitForFile } from 'src/utils/general';
 import { StartTranscodeDto } from './transcoder.dto';
+import { UrlSignatureGuard } from 'src/middleware/url-signature.guard';
 
 @Controller()
 export class TranscoderDASHController {
 	constructor(private transcoderService: TranscoderService) {}
 
 	@Get('/session/start.mpd')
+	@UseGuards(UrlSignatureGuard)
 	@Header('content-type', 'text/xml')
 	async startDash(@Req() req, @Param() params, @Query() query: StartTranscodeDto) {
 		console.debug(`[${query.session}] Started session with URL: ${req.url}`)
