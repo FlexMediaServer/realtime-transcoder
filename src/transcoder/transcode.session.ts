@@ -158,10 +158,10 @@ export class TranscodeSession {
 		//Find video stream
 		const videoStream = this.getSelectedVideoStream();
 		const audioStream = this.getSelectedAudioStream();
-		const directCopyVideo = this.directStreamAudio;
-		const directCopyAudio = this.directStreamVideo;
-		const videoMap = directCopyVideo ? `0:${videoStream.index}` : 'video';
-		const audioMap = directCopyAudio ? `0:${audioStream.index}` : 'audio';
+		const directCopyVideo = this.directStreamVideo;
+		const directCopyAudio = this.directStreamAudio;
+		const videoMap = directCopyVideo ? `0:${videoStream.index}` : '[video]';
+		const audioMap = directCopyAudio ? `0:${audioStream.index}` : '[audio]';
 
 		//Create folder
 		if (!fs.existsSync(`${this.folderPath}`)) fs.mkdirSync(`${this.folderPath}`, { recursive: true });
@@ -202,14 +202,14 @@ export class TranscodeSession {
 				].filter((arg) => arg),
 			)
 			.output(type == 'dash' ? `manifest.mpd` : type == 'hls' ? `%d.ts` : '%d.mkv')
-			.map(videoMap)
-			.map(audioMap)
 			// .audioCodec('libopus')
 			.audioCodec(directCopyAudio ? 'copy' : 'libfdk_aac')
 			// .audioChannels(this.metadata.streams.find((stream) => stream.index === this.audioTrackIdx).channels)
 			.videoCodec(directCopyVideo ? 'copy' : getEncoder(codec))
 			.outputOptions(
 				[
+					`-map ${videoMap}`,
+					`-map ${audioMap}`,
 					...(directCopyAudio ? [] : ['-profile:a aac_low']),
 					...(directCopyVideo ? [] : [choosePresetOptions(preset)]),
 					subtitleTrackIdx ? `-map_inlineass 0:${subtitleTrackIdx}` : null,
