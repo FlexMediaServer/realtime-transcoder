@@ -5,22 +5,24 @@ import { cudaPresetOptions } from './hwaccel/cuda';
 import { getStream } from './general';
 import { TranscodeSession } from 'src/transcoder/transcode.session';
 
-export function buildComplexFilters (session: TranscodeSession): FilterSpecification[] {
+export function buildComplexFilters (session: TranscodeSession, options?: { copyVideo?: boolean; copyAudio?: boolean }): FilterSpecification[] {
+	const copyVideo = options?.copyVideo ?? false;
+	const copyAudio = options?.copyAudio ?? false;
 
 	const imageSubtitleFormat = session.subtitleTrackIdx ? isImageSubtitleFormat(getStream(session.metadata, session.subtitleTrackIdx)) : false;
 
 	return [
 
-		{
+		...(copyVideo ? [] : [{
 			inputs: `0:v:0`,
 			filter: [
 				isHDR(session.metadata) ? 'tonemap=hable,format=nv12' : 'format=nv12',
 				session.subtitleTrackIdx && !imageSubtitleFormat ? buildSubtitleFilterInlineass() : undefined,
 			].filter(filter => filter).join(','),
 			outputs: 'video_1',
-		},
+		}]),
 
-		imageSubtitleFormat && session.subtitleTrackIdx ? {
+		...(copyVideo ? [] : [imageSubtitleFormat && session.subtitleTrackIdx ? {
 			inputs: ['video_1', `0:${session.subtitleTrackIdx}`],
 			filter: 'overlay',
 			outputs: 'video_2',
@@ -28,10 +30,10 @@ export function buildComplexFilters (session: TranscodeSession): FilterSpecifica
 			inputs: ['video_1'],
 			filter: 'null',
 			outputs: 'video_2'
-		},
+		}]),
 
 		//If is hardware, upload to GPU
-		isHardware() ? {
+		...(copyVideo ? [] : [isHardware() ? {
 			inputs: ['video_2'],
 			filter: [
 				'hwupload',
@@ -41,21 +43,21 @@ export function buildComplexFilters (session: TranscodeSession): FilterSpecifica
 			inputs: ['video_2'],
 			filter: 'null',
 			outputs: 'video_3'
-		},
+		}]),
 
-		{
+		...(copyVideo ? [] : [{
 			inputs: `video_3`,
 			filter: [
 				buildScaleFilter(session.resolution)
 			].filter(filter => filter).join(','),
 			outputs: 'video',
-		},
+		}]),
 
-		{
+		...(copyAudio ? [] : [{
 			inputs: session.audioTrackIdx > -1 ? `0:${session.audioTrackIdx}` : '0:a:0',
 			filter: `aresample=async=1:ochl='stereo':rematrix_maxval=0.000000dB:osr=48000${session.offset == 0 ? ':first_pts=0' : ''}`,
 			outputs: 'audio',
-		},
+		}]),
 	].filter(filter => filter)
 	
 }
@@ -80,17 +82,41 @@ export function buildScaleFilter(resolution: string): string {
 	}
 }
 
-export function getEncoder(codec: 'h264' | 'hevc') {
+export function getEncoder(codec: 'h264' | 'hevc' | 'passthrough') {
 	const type = process.env.TRANSCODE_TYPE || 'software';
 
 	switch (type) {
 		case 'vaapi':
-			return codec == 'hevc' ? 'hevc_vaapi' : 'h264_vaapi';
+			switch (codec) {
+				case 'passthrough':
+					return 'copy';
+				case 'hevc':
+					return 'hevc_vaapi';
+				case 'h264':
+				default:
+					return 'h264_vaapi';
+			}
 		case 'nvenc':
-			return codec == 'hevc' ? 'hevc_nvenc' : 'h264_nvenc';
+			switch (codec) {
+				case 'passthrough':
+					return 'copy';
+				case 'hevc':
+					return 'hevc_nvenc';
+				case 'h264':
+				default:
+					return 'h264_nvenc';
+			}
 		case 'software':
 		default:
-			return codec == 'hevc' ? 'libx265' : 'libx264';
+			switch (codec) {
+				case 'passthrough':
+					return 'copy';
+				case 'hevc':
+					return 'hevc_vaapi';
+				case 'h264':
+				default:
+					return 'h264_vaapi';
+			}
 	}
 }
 

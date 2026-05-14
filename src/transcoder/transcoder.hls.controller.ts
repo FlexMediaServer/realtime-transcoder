@@ -22,6 +22,8 @@ export class TranscoderHLSController {
 		const session_ = this.transcoderService.getSession(query.session);
 		const session =
 			session_ &&
+			(query.directStreamAudio !== undefined ? query.directStreamAudio == session_.directStreamAudio : true) &&
+			(query.directStreamVideo !== undefined ? query.directStreamVideo == session_.directStreamVideo : true) &&
 			(query.subtitleTrack ? query.subtitleTrack == session_.subtitleTrackIdx : true) &&
 			(query.audioTrack ? query.audioTrack == session_.audioTrackIdx : true) &&
 			(query.bitrate ? query.bitrate == session_.bitrate : true) &&
@@ -32,6 +34,8 @@ export class TranscoderHLSController {
 				: await this.transcoderService.startSession({
 						type: 'hls',
 						url: query.url,
+						directStreamAudio: query.directStreamAudio,
+						directStreamVideo: query.directStreamVideo,
 						audioTrack: query.audioTrack,
 						subtitleTrack: query.subtitleTrack,
 						codec: query.codec,

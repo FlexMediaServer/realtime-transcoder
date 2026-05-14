@@ -24,7 +24,7 @@ export class TranscoderController {
 		return `
 		    <div class="header">
 				<img width="72px" src="https://avatars.githubusercontent.com/u/191876783?s=400&u=31a28945648f2ee2323dcb72b7d2384e9bcdb115&v=4" />
-				<h1>Plextra Transcoder</h1>
+				<h1>Transcoder</h1>
 			</div>
 			<table>
 				<caption><strong>Individual Session Details (${Object.entries(this.transcoderService.sessions).length} active)</strong></caption>
@@ -119,7 +119,7 @@ export class TranscoderController {
 				}
 			</style>
 			<script>
-					const pageBaseUrl = window.location.pathname ? window.location.pathname : '';
+					const pageBaseUrl = window.location.pathname && window.location.pathname !== '/' ? window.location.pathname : '';
 
 					setInterval(() => {
   						location.reload();

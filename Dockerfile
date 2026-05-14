@@ -1,4 +1,4 @@
-FROM ghcr.io/plextra/plex-ffmpeg AS base
+FROM ghcr.io/flexmediaserver/plex-ffmpeg AS base
 
 WORKDIR /usr/src/app
 

@@ -16,7 +16,7 @@ export class UrlSignatureGuard implements CanActivate {
 		const fullUrl = `${proto}://${host}${originalUrl}`;
 		const isValid = verifyUrl(fullUrl);
 
-		if (!isValid) {
+		if (!isValid && process.env.NODE_ENV !== 'development') {
 			throw new UnauthorizedException('Invalid or expired signature');
 		}
 

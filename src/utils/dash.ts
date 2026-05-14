@@ -21,7 +21,7 @@ export function generateManifest(sessionId: string, session: TranscodeSession) {
 			// '@maxSegmentDuration': 'PT10S',
 			// '@minBufferTime': 'PT10S',
 			Period: {
-				// '@start': secondsToIsoPt(session.offset),
+				'@start': secondsToIsoPt(session.offset),
 				'@id': '0',
 				'@duration': secondsToIsoPt(duration),
 				AdaptationSet: [
@@ -37,7 +37,7 @@ export function generateManifest(sessionId: string, session: TranscodeSession) {
 						Representation: {
 							'@id': '0',
 							'@mimeType': 'video/mp4',
-							'@codecs': 'avc1.4d002a',
+							'@codecs': session.videoCodecName === 'h264' ? 'avc1.4d002a' : 'avc1.4d002a',
 							'@bandwidth': '4214000',
 							'@width': '1920',
 							'@height': '1080',
@@ -55,7 +55,7 @@ export function generateManifest(sessionId: string, session: TranscodeSession) {
 						Representation: {
 							'@id': '1',
 							'@mimeType': 'audio/mp4',
-							'@codecs': 'mp4a.40.29',
+							'@codecs': session.audioCodecName === 'aac' ? 'mp4a.40.29' : 'mp4a.40.2',
 							'@bandwidth': '256000',
 							'@audioSamplingRate': '48000',
 							AudioChannelConfiguration: {
@@ -69,7 +69,7 @@ export function generateManifest(sessionId: string, session: TranscodeSession) {
 		},
 	};
 
-	return toXML(obj);
+	return `<?xml version="1.0" encoding="utf-8"?>\n` + toXML(obj);
 }
 
 export function dashOutputOptions(session: InstanceType<typeof TranscodeSession>) {

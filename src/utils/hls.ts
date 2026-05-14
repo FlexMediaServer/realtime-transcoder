@@ -42,7 +42,7 @@ export function generateMasterPlaylist(session: TranscodeSession) {
 					height: 1080
 				},
 				frameRate: 24,
-				codecs: 'avc1.4D401F,mp4a.40.2',
+				codecs: [session.videoCodecName === 'h264' ? 'avc1.4d002a' : 'avc1.4d002a', session.audioCodecName === 'aac' ? 'mp4a.40.29' : 'mp4a.40.2'].filter((codec) => codec).join(','),
 				score: 0,
 				// allowedCpc: [],
 				videoRange: 'SDR',

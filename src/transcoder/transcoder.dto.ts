@@ -14,12 +14,23 @@ export enum Preset {
 export enum Codec {
 	h264 = 'h264',
 	hevc = 'hevc',
+	passthrough = 'passthrough'
 }
 
 export class StartTranscodeDto {
 	@IsString()
 	@IsOptional()
 	session: string;
+
+	@IsOptional()
+	@Transform(({ value }) => value === true || value === 'true' || value === '1' || value === 1)
+	@IsBoolean()
+	directStreamAudio: boolean;
+
+	@IsOptional()
+	@Transform(({ value }) => value === true || value === 'true' || value === '1' || value === 1)
+	@IsBoolean()
+	directStreamVideo: boolean;
 
 	@IsNotEmpty()
 	@IsString()

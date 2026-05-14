@@ -19,6 +19,8 @@ export class TranscoderDASHController {
 
 		const session = this.transcoderService.getSession(query.session);
 		const newSession = session &&
+		(query.directStreamAudio !== undefined ? query.directStreamAudio == session.directStreamAudio : true) &&
+		(query.directStreamVideo !== undefined ? query.directStreamVideo == session.directStreamVideo : true) &&
 		(query.subtitleTrack ? query.subtitleTrack == session.subtitleTrackIdx : true) &&
 		(query.audioTrack ? query.audioTrack == session.audioTrackIdx : true) &&
 		(query.bitrate ? query.bitrate == session.bitrate : true) &&
@@ -29,6 +31,8 @@ export class TranscoderDASHController {
 			: await this.transcoderService.startSession({
 					type: 'dash',
 					url: query.url,
+					directStreamAudio: query.directStreamAudio,
+					directStreamVideo: query.directStreamVideo,
 					audioTrack: query.audioTrack,
 					subtitleTrack: query.subtitleTrack,
 					sessionId: query.session,

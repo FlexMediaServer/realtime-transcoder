@@ -36,8 +36,12 @@ export class TranscodeSession {
 	subtitleTrackIdx: number;
 	resolution: string;
 	bitrate: number; //Bitrate in kbps
-	codec: 'h264' | 'hevc';
+	codec: 'h264' | 'hevc' | 'passthrough';
+	directStreamAudio: boolean;
+	directStreamVideo: boolean;
 	preset: Preset;
+	videoCodecName: string;
+	audioCodecName: string;
 
 	segments: {
 		[streamId: string]: [
@@ -73,9 +77,11 @@ export class TranscodeSession {
 		type = <'hls' | 'dash' | 'http'>undefined,
 		url = <string>undefined,
 		resolution = '1920x1080',
-		bitrate = 6000,
+		bitrate = 4000,
 		preset = <Preset>'ultrafast',
-		codec = <'h264' | 'hevc'>'h264',
+		codec = <'h264' | 'hevc' | 'passthrough'>'h264',
+		directStreamAudio = false,
+		directStreamVideo = false,
 		audioTrack = -1,
 		subtitleTrack = <number>null,
 		sessionId = randomstring.generate(20),
@@ -95,6 +101,8 @@ export class TranscodeSession {
 		this.resolution = resolution; // Default resolution if not provided
 		this.bitrate = bitrate;
 		this.codec = codec;
+		this.directStreamAudio = directStreamAudio;
+		this.directStreamVideo = directStreamVideo;
 		this.preset = preset;
 		this.segmentLengthSeconds = 5;
 		this.segmentThrottleSeconds = segmentThrottleSeconds;
@@ -108,6 +116,36 @@ export class TranscodeSession {
 		segment (segment index)
 		indexFromStart: sets starting segment to be 0 (or 1 for dash)
 	*/
+	private getSelectedVideoStream() {
+		return this.metadata?.streams.find((stream) => stream.codec_type == 'video');
+	}
+
+	private getSelectedAudioStream() {
+		if (this.audioTrackIdx > -1) return getStream(this.metadata, this.audioTrackIdx);
+		return this.metadata?.streams.find((stream) => stream.codec_type == 'audio');
+	}
+
+	private getCodecTag(codecName: string, type: 'video' | 'audio') {
+		if (!codecName) return undefined;
+		if (type === 'video') {
+			switch (codecName) {
+				case 'h264':
+					return 'avc1.4d002a';
+				case 'hevc':
+					return 'hvc1.1.6.L120.B0';
+				default:
+					return codecName;
+			}
+		}
+
+		switch (codecName) {
+			case 'aac':
+				return 'mp4a.40.2';
+			default:
+				return codecName;
+		}
+	}
+
 	async start () {
 		//If ffmpeg already exists, stop it and reset.
 		await this.stop();
@@ -118,7 +156,12 @@ export class TranscodeSession {
 		console.debug('Getting video metadata...', this.metadata.format)
 
 		//Find video stream
-		const videoStream = this.metadata.streams.find((stream) => stream.codec_type == 'video');
+		const videoStream = this.getSelectedVideoStream();
+		const audioStream = this.getSelectedAudioStream();
+		const directCopyVideo = this.directStreamAudio;
+		const directCopyAudio = this.directStreamVideo;
+		const videoMap = directCopyVideo ? `0:${videoStream.index}` : 'video';
+		const audioMap = directCopyAudio ? `0:${audioStream.index}` : 'audio';
 
 		//Create folder
 		if (!fs.existsSync(`${this.folderPath}`)) fs.mkdirSync(`${this.folderPath}`, { recursive: true });
@@ -129,6 +172,9 @@ export class TranscodeSession {
 		const fps = parseInt(fpsParsed[0]) / parseInt(fpsParsed[1]);
 		//Calculate keyframe interval depending on fps
 		const keyFrameInterval = Math.round(fps * segmentLengthSeconds);
+
+		this.videoCodecName = directCopyVideo ? videoStream.codec_name : this.codec === 'hevc' ? 'hevc' : 'h264';
+		this.audioCodecName = directCopyAudio ? audioStream.codec_name : 'aac';
 
 		this.lastActivityTs = Date.now();
 
@@ -156,26 +202,26 @@ export class TranscodeSession {
 				].filter((arg) => arg),
 			)
 			.output(type == 'dash' ? `manifest.mpd` : type == 'hls' ? `%d.ts` : '%d.mkv')
-			.complexFilter(buildComplexFilters(this))
-			.map('video')
-			.map('audio')
+			.map(videoMap)
+			.map(audioMap)
 			// .audioCodec('libopus')
-			.audioCodec('libfdk_aac')
+			.audioCodec(directCopyAudio ? 'copy' : 'libfdk_aac')
 			// .audioChannels(this.metadata.streams.find((stream) => stream.index === this.audioTrackIdx).channels)
-			.audioBitrate('192k')
-			.videoCodec(getEncoder(codec))
-			.withVideoBitrate(`${this.bitrate}k`)
-			.withFPS(Math.round(fps))
+			.videoCodec(directCopyVideo ? 'copy' : getEncoder(codec))
 			.outputOptions(
 				[
-					'-profile:a aac_low',
-					choosePresetOptions(preset),
+					...(directCopyAudio ? [] : ['-profile:a aac_low']),
+					...(directCopyVideo ? [] : [choosePresetOptions(preset)]),
 					subtitleTrackIdx ? `-map_inlineass 0:${subtitleTrackIdx}` : null,
-					'-forced-idr:0 1',
-					`-maxrate:v ${this.bitrate}k`,
-					`-bufsize:v ${this.bitrate/2}k`,
-					`-g:v ${keyFrameInterval}`,
-					`-keyint_min:v ${keyFrameInterval}`,
+					...(directCopyVideo
+						? []
+						: [
+							'-forced-idr:0 1',
+							`-maxrate:v ${this.bitrate}k`,
+							`-bufsize:v ${this.bitrate/2}k`,
+							`-g:v ${keyFrameInterval}`,
+							`-keyint_min:v ${keyFrameInterval}`,
+						]),
 					// '-force_key_frames:v expr:gte(t,n_forced*1)',
 					...(type == 'dash'
 						? dashOutputOptions(this)
@@ -189,6 +235,26 @@ export class TranscodeSession {
 					'-y',
 				].filter((arg) => arg),
 			);
+
+		if (!directCopyVideo && !directCopyAudio) {
+			this.ffmpeg.complexFilter(buildComplexFilters(this, {
+				copyVideo: directCopyVideo,
+				copyAudio: directCopyAudio,
+			}));
+		}
+
+		if (!directCopyAudio) {
+			this.ffmpeg.audioBitrate('192k');
+		}
+
+		if (!directCopyVideo) {
+			this.ffmpeg.withVideoBitrate(`${this.bitrate}k`).withFPS(Math.round(fps));
+		}
+
+		this.eventBus.emit('codecInfo', {
+			video: this.getCodecTag(this.videoCodecName, 'video'),
+			audio: this.getCodecTag(this.audioCodecName, 'audio'),
+		});
 
 		if (subtitleTrackIdx && !isImageSubtitleFormat(getStream(this.metadata, subtitleTrackIdx)))
 			this.ffmpeg
@@ -340,6 +406,7 @@ export class TranscodeSession {
 	}
 
 	async getSegment(streamIndex: number = 0, segmentIndex: number, outputStream) {
+		console.debug(`[${this.id}] Getting segment: ${streamIndex}:${segmentIndex}`)
 		this.lastActivityTs = Date.now();
 
 		const segmentPath =
