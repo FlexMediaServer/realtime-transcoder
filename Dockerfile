@@ -1,4 +1,4 @@
-FROM ghcr.io/flexmediaserver/plex-ffmpeg AS base
+FROM ghcr.io/flexmediaserver/plex-ffmpeg:latest AS base
 
 WORKDIR /usr/src/app
 
@@ -24,7 +24,7 @@ RUN corepack enable
 COPY package*.json ./
 COPY pnpm-lock.yaml ./
 
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --force
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --force --dangerously-allow-all-builds
 
 COPY . .
 

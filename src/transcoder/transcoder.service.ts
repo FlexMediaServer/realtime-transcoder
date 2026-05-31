@@ -47,7 +47,10 @@ export class TranscoderService {
 	}
 		*/
 	async startSession(options: ConstructorParameters<typeof TranscodeSession>[0]): Promise<InstanceType<typeof TranscodeSession>> {
-		const session = new TranscodeSession(options, this);
+		const session = new TranscodeSession({
+			...options,
+			transcodeFolder: this.transcodeFolder
+		}, this);
 		this.sessions[session.id] = session;
 
 		await session.start()
