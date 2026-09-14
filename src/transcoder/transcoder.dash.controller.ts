@@ -1,4 +1,4 @@
-import { Controller, Get, Header, NotFoundException, Param, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Header, NotFoundException, Param, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { TranscoderService } from './transcoder.service';
 import fs from 'fs';
 import { generateManifest } from 'src/utils/dash';
@@ -9,40 +9,42 @@ import { UrlSignatureGuard } from 'src/middleware/url-signature.guard';
 
 @Controller()
 export class TranscoderDASHController {
-	constructor(private transcoderService: TranscoderService) {}
+	constructor(private transcoderService: TranscoderService) { }
 
 	@Get('/session/start.mpd')
 	@UseGuards(UrlSignatureGuard)
 	@Header('content-type', 'text/xml')
 	async startDash(@Req() req, @Param() params, @Query() query: StartTranscodeDto) {
+		const session = this.transcoderService.getSession(query.session);
+		if (query.url === undefined && session === undefined) throw new BadRequestException('`url` must be defined to start a transcode session');
+
 		console.debug(`[${query.session}] Started session with URL: ${req.url}`)
 
-		const session = this.transcoderService.getSession(query.session);
 		const newSession = session &&
-		(query.directStreamAudio !== undefined ? query.directStreamAudio == session.directStreamAudio : true) &&
-		(query.directStreamVideo !== undefined ? query.directStreamVideo == session.directStreamVideo : true) &&
-		(query.subtitleTrack ? query.subtitleTrack == session.subtitleTrackIdx : true) &&
-		(query.audioTrack ? query.audioTrack == session.audioTrackIdx : true) &&
-		(query.bitrate ? query.bitrate == session.bitrate : true) &&
-		(query.resolution ? query.resolution == session.resolution : true) &&
-		(query.offset ? query.offset == session.offset : true) &&
-		(query.url ? query.url == session.url : true)
+			(query.directStreamAudio !== undefined ? query.directStreamAudio == session.directStreamAudio : true) &&
+			(query.directStreamVideo !== undefined ? query.directStreamVideo == session.directStreamVideo : true) &&
+			(query.subtitleTrack ? query.subtitleTrack == session.subtitleTrackIdx : true) &&
+			(query.audioTrack ? query.audioTrack == session.audioTrackIdx : true) &&
+			(query.bitrate ? query.bitrate == session.bitrate : true) &&
+			(query.resolution ? query.resolution == session.resolution : true) &&
+			(query.offset ? query.offset == session.offset : true) &&
+			(query.url ? query.url == session.url : true)
 			? session
 			: await this.transcoderService.startSession({
-					type: 'dash',
-					url: query.url,
-					directStreamAudio: query.directStreamAudio,
-					directStreamVideo: query.directStreamVideo,
-					audioTrack: query.audioTrack,
-					subtitleTrack: query.subtitleTrack,
-					sessionId: query.session,
-					codec: query.codec,
-					offset: query.offset > 0 ? query.offset : null,
-					// startAtZeroIndex: query.startAtZeroIndex,
-					resolution: query.resolution,
-					bitrate: query.bitrate,
-					preset: query.preset,
-				});
+				type: 'dash',
+				url: query.url,
+				directStreamAudio: query.directStreamAudio,
+				directStreamVideo: query.directStreamVideo,
+				audioTrack: query.audioTrack,
+				subtitleTrack: query.subtitleTrack,
+				sessionId: query.session,
+				codec: query.codec,
+				offset: query.offset > 0 ? query.offset : null,
+				// startAtZeroIndex: query.startAtZeroIndex,
+				resolution: query.resolution,
+				bitrate: query.bitrate,
+				preset: query.preset,
+			});
 
 		// await this.transcoderService.waitForSegments('dash', sessionId, 1, 1) //Wait for first 5 segments starting at seg 1
 

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, Res, Headers, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Res, Headers, UseGuards, Req, BadRequestException } from '@nestjs/common';
 import { PassThrough } from 'stream';
 import { TranscoderService } from './transcoder.service';
 import fs from 'fs';
@@ -9,23 +9,26 @@ import { UrlSignatureGuard } from 'src/middleware/url-signature.guard';
 
 @Controller()
 export class TranscoderHTTPController {
-	constructor(private transcoderService: TranscoderService) {}
+	constructor(private transcoderService: TranscoderService) { }
 
 	@Get('/session/start')
 	@UseGuards(UrlSignatureGuard)
-	async startHTTP(@Param() params, @Query() query: StartTranscodeDto, @Res() res, @Headers() headers) {
-		console.debug(headers['range'], query['offset']);
+	async startHTTP(@Param() params, @Query() query: StartTranscodeDto, @Res() res, @Req() req, @Headers() headers) {
 		const session_ = this.transcoderService.getSession(query.session);
+		if (query.url === undefined && session_ === undefined) throw new BadRequestException('`url` must be defined to start a transcode session');
+
+		console.debug(`[${query.session}] Started session with URL: ${req.url}`)
+
 		const session =
 			session_ &&
-			(query.directStreamAudio !== undefined ? query.directStreamAudio == session_.directStreamAudio : true) &&
-			(query.directStreamVideo !== undefined ? query.directStreamVideo == session_.directStreamVideo : true) &&
-			(query.subtitleTrack ? query.subtitleTrack == session_.subtitleTrackIdx : true) &&
-			(query.audioTrack ? query.audioTrack == session_.audioTrackIdx : true) &&
-			(query.bitrate ? query.bitrate == session_.bitrate : true) &&
-			(query.resolution ? query.resolution == session_.resolution : true) &&
-			(query.offset ? query.offset == session_.offset : true) &&
-			(query.url ? query.url == session_.url : true)
+				(query.directStreamAudio !== undefined ? query.directStreamAudio == session_.directStreamAudio : true) &&
+				(query.directStreamVideo !== undefined ? query.directStreamVideo == session_.directStreamVideo : true) &&
+				(query.subtitleTrack ? query.subtitleTrack == session_.subtitleTrackIdx : true) &&
+				(query.audioTrack ? query.audioTrack == session_.audioTrackIdx : true) &&
+				(query.bitrate ? query.bitrate == session_.bitrate : true) &&
+				(query.resolution ? query.resolution == session_.resolution : true) &&
+				(query.offset ? query.offset == session_.offset : true) &&
+				(query.url ? query.url == session_.url : true)
 				? session_
 				: await this.transcoderService.startSession({
 					type: 'http',

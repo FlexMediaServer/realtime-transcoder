@@ -1,4 +1,4 @@
-FROM ghcr.io/flexmediaserver/plex-ffmpeg:latest AS base
+FROM ghcr.io/flexmediaserver/plex-ffmpeg AS base
 
 WORKDIR /usr/src/app
 
@@ -17,14 +17,16 @@ RUN echo "source $NVM_DIR/nvm.sh && \
 	nvm alias default $NODE_VERSION && \
 	nvm use default" | bash
 
+RUN npm i -g pnpm
+
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
 
 COPY package*.json ./
 COPY pnpm-lock.yaml ./
 
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --force --dangerously-allow-all-builds
+RUN pnpm config set store-dir /pnpm/store && \
+	pnpm install --force --dangerously-allow-all-builds
 
 COPY . .
 

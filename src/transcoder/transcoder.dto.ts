@@ -32,7 +32,7 @@ export class StartTranscodeDto {
 	@IsBoolean()
 	directStreamVideo: boolean;
 
-	@IsNotEmpty()
+	@IsOptional()
 	@IsString()
 	url: string;
 

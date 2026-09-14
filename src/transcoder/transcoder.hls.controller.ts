@@ -1,4 +1,4 @@
-import { Controller, Get, Header, NotFoundException, Param, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Header, NotFoundException, Param, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { segmentThrottleSeconds, TranscoderService } from './transcoder.service';
 import fs from 'fs';
 import { stringify } from 'hls-parser';
@@ -11,41 +11,43 @@ import { UrlSignatureGuard } from 'src/middleware/url-signature.guard';
 
 @Controller()
 export class TranscoderHLSController {
-	constructor(private transcoderService: TranscoderService) {}
+	constructor(private transcoderService: TranscoderService) { }
 
 	@Get('/session/start.m3u8')
 	@UseGuards(UrlSignatureGuard)
 	@Header('content-type', 'application/vnd.apple.mpegurl')
 	async startHls(@Req() req, @Param() params, @Query() query: StartTranscodeDto) {
+		const session_ = this.transcoderService.getSession(query.session);
+		if (query.url === undefined && session_ === undefined) throw new BadRequestException('`url` must be defined to start a transcode session');
+
 		console.debug(`[${query.session}] Started session with URL: ${req.url}`)
 
-		const session_ = this.transcoderService.getSession(query.session);
 		const session =
 			session_ &&
-			(query.directStreamAudio !== undefined ? query.directStreamAudio == session_.directStreamAudio : true) &&
-			(query.directStreamVideo !== undefined ? query.directStreamVideo == session_.directStreamVideo : true) &&
-			(query.subtitleTrack ? query.subtitleTrack == session_.subtitleTrackIdx : true) &&
-			(query.audioTrack ? query.audioTrack == session_.audioTrackIdx : true) &&
-			(query.bitrate ? query.bitrate == session_.bitrate : true) &&
-			(query.resolution ? query.resolution == session_.resolution : true) &&
-			(query.offset ? query.offset == session_.offset : true) &&
-			(query.url ? query.url == session_.url : true)
+				(query.directStreamAudio !== undefined ? query.directStreamAudio == session_.directStreamAudio : true) &&
+				(query.directStreamVideo !== undefined ? query.directStreamVideo == session_.directStreamVideo : true) &&
+				(query.subtitleTrack ? query.subtitleTrack == session_.subtitleTrackIdx : true) &&
+				(query.audioTrack ? query.audioTrack == session_.audioTrackIdx : true) &&
+				(query.bitrate ? query.bitrate == session_.bitrate : true) &&
+				(query.resolution ? query.resolution == session_.resolution : true) &&
+				(query.offset ? query.offset == session_.offset : true) &&
+				(query.url ? query.url == session_.url : true)
 				? session_
 				: await this.transcoderService.startSession({
-						type: 'hls',
-						url: query.url,
-						directStreamAudio: query.directStreamAudio,
-						directStreamVideo: query.directStreamVideo,
-						audioTrack: query.audioTrack,
-						subtitleTrack: query.subtitleTrack,
-						codec: query.codec,
-						sessionId: query.session,
-						offset: query.offset > 0 ? query.offset : null,
-						// startAtZeroIndex: query.startAtZeroIndex,
-						resolution: query.resolution,
-						bitrate: query.bitrate,
-						preset: query.preset,
-					});
+					type: 'hls',
+					url: query.url,
+					directStreamAudio: query.directStreamAudio,
+					directStreamVideo: query.directStreamVideo,
+					audioTrack: query.audioTrack,
+					subtitleTrack: query.subtitleTrack,
+					codec: query.codec,
+					sessionId: query.session,
+					offset: query.offset > 0 ? query.offset : null,
+					// startAtZeroIndex: query.startAtZeroIndex,
+					resolution: query.resolution,
+					bitrate: query.bitrate,
+					preset: query.preset,
+				});
 
 		await session.waitForStart();
 
